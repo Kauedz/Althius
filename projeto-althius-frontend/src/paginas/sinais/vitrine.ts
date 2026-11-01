@@ -103,22 +103,6 @@ export function nichoDoWorkspace(segmentos: string): Nicho | undefined {
   return melhor?.nicho
 }
 
-/** Resolve o nicho a partir da fonte estruturada única do Workspace, sem depender da Memória. */
-export function nichoDoIcp(icp: { sector?: string; companySize?: string; geography?: string; targetRoles?: unknown; freeText?: string; oQueVende?: string; miniIcp?: string; porQueCompram?: string }): Nicho | undefined {
-  const papeis = Array.isArray(icp.targetRoles) ? icp.targetRoles.join(' ') : ''
-  const dadosDoIcp = [
-    icp.sector,
-    icp.companySize,
-    icp.geography,
-    papeis,
-    icp.freeText,
-    icp.oQueVende,
-    icp.miniIcp,
-    icp.porQueCompram,
-  ]
-  return nichoDoWorkspace(dadosDoIcp.filter(Boolean).join(' '))
-}
-
 export function ativosDoCard(card: CardDoCatalogo, monitoramentos: readonly Pick<Monitoramento, 'tipoId' | 'estado'>[]): number {
   return monitoramentos.filter((m) => m.estado === 'ativo' && card.contados.includes(m.tipoId)).length
 }
@@ -145,21 +129,16 @@ export function montarPrateleiras({
   exclusivos,
   monitoramentos,
   nicho,
-  idsDoCatalogoParaIcp,
 }: {
   cards: readonly CardDoCatalogo[]
   exclusivos: readonly CardDoCatalogo[]
   monitoramentos: readonly Pick<Monitoramento, 'tipoId' | 'estado'>[]
   nicho?: Nicho
-  idsDoCatalogoParaIcp?: readonly string[]
 }): Prateleiras {
   const disponiveis = cards.filter((card) => !eLancamento(card.id))
   const ativos = new Map(disponiveis.map((card) => [card.id, ativosDoCard(card, monitoramentos)]))
   return {
-    paraOSeuNicho: idsDoCatalogoParaIcp
-      ? disponiveis.filter((card) => idsDoCatalogoParaIcp.includes(card.id))
-          .concat(disponiveis.filter((card) => valeParaTodosOsNichos(card)))
-      : nicho
+    paraOSeuNicho: nicho
       ? disponiveis.filter((card) => card.nichos.includes(nicho.slug) && !valeParaTodosOsNichos(card))
           .concat(disponiveis.filter((card) => valeParaTodosOsNichos(card)))
       : disponiveis.filter((card) => valeParaTodosOsNichos(card)),

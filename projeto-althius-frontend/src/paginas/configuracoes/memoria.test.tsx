@@ -75,9 +75,7 @@ describe('Revisão do ICP pelo Scopus', () => {
 async function publicoDoMonitoramentoPreexistente(usuario: Usuario) {
   await usuario.click(within(await screen.findByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Sinais/ }))
   await screen.findByRole('region', { name: 'Catálogo de sinais' })
-  // O Monitoramento aparece em "Meus Sinais" (Sinais first 09) e no resumo de sempre; o primeiro abre a página do Monitoramento.
-  const [link] = await screen.findAllByRole('link', { name: /Vagas de engenharia de dados/ })
-  await usuario.click(link)
+  await usuario.click(await screen.findByRole('link', { name: /Vagas de engenharia de dados/ }))
   return screen.findByRole('complementary', { name: 'Público recomendado' })
 }
 

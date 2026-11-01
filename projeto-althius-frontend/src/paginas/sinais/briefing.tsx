@@ -1,12 +1,11 @@
 import { Sparkles } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
 import { Opcao } from '@/components/opcao'
-import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
 import {
   ErroDoPlano,
   LIMITES_DO_PLANO,
@@ -77,9 +76,6 @@ function useTiposAceitos(): string[] | undefined {
 export function PaginaDoBriefing() {
   const [parametros] = useSearchParams()
   const monitorId = parametros.get('monitor')
-  const modeloId = parametros.get('modelo')
-  const localizacao = useLocation()
-  const estado = localizacao.state as { briefing?: unknown; origem?: unknown } | null
   const { monitoramentos, carregando, erro, recarregar } = useSinaisDoMockup()
   const existente = monitorId ? monitoramentos.find((m) => m.id === monitorId) : undefined
 
@@ -101,17 +97,17 @@ export function PaginaDoBriefing() {
   }
   // Um Monitoramento sem Plano (ou que o editor mudou depois) se edita no editor de sempre.
   if (existente && !existente.plano) return <Navigate to={`/sinais/tipos/${existente.tipoId}/${existente.id}`} replace />
-  return <DescreverUmSinal key={existente?.id ?? modeloId ?? 'novo'} existente={existente} modeloId={existente ? undefined : modeloId ?? undefined} briefingInicial={!existente && estado?.origem === 'composer' && typeof estado.briefing === 'string' ? estado.briefing : undefined} origem={!existente ? (estado?.origem === 'composer' ? 'composer' : modeloId ? 'modelo' : undefined) : undefined} />
+  return <DescreverUmSinal key={existente?.id ?? 'novo'} existente={existente} />
 }
 
-function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { existente?: Monitoramento; modeloId?: string; briefingInicial?: string; origem?: 'composer' | 'modelo' }) {
+function DescreverUmSinal({ existente }: { existente?: Monitoramento }) {
   const fonte = useFonteDeSinais()
   const { salvarPlano } = useSinaisDoMockup()
   const navegar = useNavigate()
   const tiposAceitos = useTiposAceitos()
 
   const [passo, setPasso] = useState<'briefing' | 'plano'>(existente ? 'plano' : 'briefing')
-  const [briefing, setBriefing] = useState((briefingInicial ?? existente?.briefing ?? '').slice(0, LIMITES_DO_PLANO.briefingMax))
+  const [briefing, setBriefing] = useState(existente?.briefing ?? '')
   const [contas, setContas] = useState<string[]>(() =>
     existente?.plano?.escopo.tipo === 'contas' ? [...existente.plano.escopo.contaIds] : [],
   )
@@ -122,7 +118,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
   const { dados: contasDoWorkspace } = useDadosDeContas((f) => f.contas(), [])
   const [escopoEscolhido, setEscopo] = useState<'contas' | 'mercado' | null>(() => existente?.plano?.escopo.tipo ?? null)
   const escopo: 'contas' | 'mercado' = escopoEscolhido
-    ?? (mercadoDisponivel && (origem === 'composer' || contasDoWorkspace?.length === 0) ? 'mercado' : 'contas')
+    ?? (mercadoDisponivel && contasDoWorkspace?.length === 0 ? 'mercado' : 'contas')
   const [plano, setPlano] = useState<PlanoEmEdicao | null>(() => (existente?.plano ? emEdicao(existente.plano, []) : null))
   const [nome, setNome] = useState(existente?.nome ?? '')
   const [montando, setMontando] = useState(false)
@@ -131,41 +127,6 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
   const [podePedirAjuda, setPodePedirAjuda] = useState(false)
   const [avisoDasContas, setAvisoDasContas] = useState<string | null>(null)
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
-  const [modeloCarregando, setModeloCarregando] = useState(Boolean(modeloId))
-  const [agendaSugerida, setAgendaSugerida] = useState<{ horarios: string[]; dias: number[] } | null>(null)
-  const [cotacaoModelo, setCotacaoModelo] = useState<{ porRodada: number; porDia: number; porMesAprox: number } | null>(null)
-  const [cotandoModelo, setCotandoModelo] = useState(false)
-
-  useEffect(() => {
-    if (!modeloId || !fonte.modelo) return
-    let ativo = true
-    fonte.modelo(modeloId).then((modelo) => {
-      if (!ativo) return
-      setBriefing(modelo.briefing)
-      setNome(modelo.nome)
-      setContas([])
-      setAgendaSugerida(modelo.agenda)
-      setPlano(emEdicao(modelo.plano, [`Modelo · versão ${modelo.versao}`]))
-      setPasso('plano')
-    }).catch((erro) => {
-      if (ativo) setErroDoBriefing(erro instanceof Error ? erro.message : 'Não foi possível carregar este Modelo.')
-    }).finally(() => {
-      if (ativo) setModeloCarregando(false)
-    })
-    return () => { ativo = false }
-  }, [fonte, modeloId])
-
-  useEffect(() => {
-    if (!modeloId || !plano || !agendaSugerida || !fonte.cotarModelo) return
-    let ativo = true
-    setCotandoModelo(true)
-    setCotacaoModelo(null)
-    fonte.cotarModelo(plano.tipo, plano.maxEmpresasPorRodada, agendaSugerida)
-      .then((cotacao) => ativo && setCotacaoModelo(cotacao))
-      .catch(() => ativo && setCotacaoModelo(null))
-      .finally(() => ativo && setCotandoModelo(false))
-    return () => { ativo = false }
-  }, [fonte, modeloId, plano?.tipo, plano?.maxEmpresasPorRodada, agendaSugerida])
 
   const publico: Publico = { modo: 'listas', listas: contas, usaRecomendado: false }
   const escolherContas = (novo: Publico) => {
@@ -215,7 +176,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
         maxEmpresasPorRodada: plano.maxEmpresasPorRodada,
         ...(plano.modeloId ? { modeloId: plano.modeloId } : {}),
       }
-      const salvo = await salvarPlano({ id: existente?.id, nome: nome.trim(), briefing: briefing.trim(), plano: paraSalvar, ...(origem && !existente ? { criadoVia: origem } : {}) })
+      const salvo = await salvarPlano({ id: existente?.id, nome: nome.trim(), briefing: briefing.trim(), plano: paraSalvar })
       navegar(`/sinais/tipos/${salvo.tipoId}/${salvo.id}`)
     } catch (erro) {
       setErroSalvar(erro instanceof Error && erro.message ? erro.message : 'Não foi possível salvar o rascunho. Tente de novo.')
@@ -226,27 +187,10 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
 
   return (
     <Pagina
-      titulo={existente ? 'Editar plano' : modeloId ? 'Revisar Modelo' : 'Descrever um Sinal'}
+      titulo={existente ? 'Editar plano' : 'Descrever um Sinal'}
       voltar={existente ? { para: `/sinais/tipos/${existente.tipoId}/${existente.id}`, rotulo: existente.nome } : { para: '/sinais', rotulo: 'Sinais' }}
     >
       <div className="flex max-w-3xl flex-col gap-8">
-        {modeloCarregando && <Carregando rotulo="Carregando Modelo" />}
-        {erroDoBriefing && modeloId && !modeloCarregando && <p role="alert" className="text-sm text-al-erro">{erroDoBriefing}</p>}
-        {agendaSugerida && passo === 'plano' && (
-          <div className="rounded-xl border border-al-line bg-al-surface p-4">
-            <p className="rotulo">Agenda sugerida</p>
-            <p className="mt-1 text-sm">{textoDaAgenda(agendaSugerida)}</p>
-            <p className="mt-1 text-xs text-al-muted">Você poderá ajustar a Agenda antes de ativar o Sinal.</p>
-            {modeloId && fonte.cotarModelo && (
-              <p className="mt-2 text-sm" aria-live="polite">
-                <span className="rotulo mr-2">Estimativa em créditos</span>
-                {cotandoModelo ? 'Calculando…' : cotacaoModelo
-                  ? `Até ${cotacaoModelo.porRodada.toLocaleString('pt-BR')} por Rodada, ${cotacaoModelo.porDia.toLocaleString('pt-BR')} por dia e ${cotacaoModelo.porMesAprox.toLocaleString('pt-BR')} por mês.`
-                  : 'Não foi possível calcular a estimativa agora.'}
-              </p>
-            )}
-          </div>
-        )}
         {passo === 'briefing' && (
           <>
             <SecaoDoFormulario

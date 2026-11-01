@@ -90,6 +90,8 @@ function sinalInterno(extra: Partial<SinalNoBanco> = {}): SinalNoBanco {
  */
 function abrir(rota: string, opcoes: { monitores?: MonitorNoBanco[]; sinais?: SinalNoBanco[] | 'falha' } = {}) {
   const gravacoes: Record<string, unknown>[] = []
+  // O catálogo não ranqueia mais pelo ICP estruturado (desfazer-sinais-first 04): a RPC só registra se for chamada.
+  const leiturasDoIcp: string[] = []
   const monitores = [...(opcoes.monitores ?? [])]
   const sinais = opcoes.sinais === 'falha' ? 'falha' : [...(opcoes.sinais ?? [])]
   localStorage.setItem('althius:modo_demo', 'false')
@@ -113,6 +115,7 @@ function abrir(rota: string, opcoes: { monitores?: MonitorNoBanco[]; sinais?: Si
     },
     rpcs: {
       bootstrap_personal_workspace: () => PESSOAL,
+      list_signal_catalog_for_my_icp: () => { leiturasDoIcp.push('list_signal_catalog_for_my_icp'); return [] },
       list_owned_sender_accounts: () => [],
       ...rpcsDeAgentes(criarBancoDeAgentes()),
       list_signal_actors: () => [
@@ -183,7 +186,7 @@ function abrir(rota: string, opcoes: { monitores?: MonitorNoBanco[]; sinais?: Si
   const servicos = criarServicosDoNavegadorFalsos()
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos.servicos} />)
-  return { usuario, gravacoes }
+  return { usuario, gravacoes, leiturasDoIcp }
 }
 
 describe('Sinais internos no catálogo do Workspace operacional', () => {
@@ -191,11 +194,27 @@ describe('Sinais internos no catálogo do Workspace operacional', () => {
     abrir('/sinais')
 
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
-    expect(await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/novo?modelo=sem-resposta')
-    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/novo?modelo=negociacao-parada')
-    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/novo?modelo=proposta-recusada')
+    expect(await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/tipos/sem-resposta')
+    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/tipos/negociacao-parada')
+    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/tipos/proposta-recusada')
     expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
     expect(screen.queryByText('Em breve')).not.toBeInTheDocument()
+  })
+
+  it('"Para o seu nicho" não ranqueia pelo ICP estruturado, nenhum card abre um Modelo e não há Renomear', async () => {
+    const ativo: MonitorNoBanco = {
+      id: MONITOR, signal_type: 'sem_resposta', name: 'Sem resposta há 30 dias', state: 'ativo',
+      audience: { accountIds: [CONTA] }, criteria: { prazoDias: 30 }, last_error: null, last_run: null,
+    }
+    const { leiturasDoIcp } = abrir('/sinais', { monitores: [ativo] })
+
+    const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
+    await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })
+    expect(screen.getByRole('heading', { name: 'Para o seu nicho' })).toBeInTheDocument()
+    for (const link of within(catalogo).getAllByRole('link')) expect(link.getAttribute('href')).not.toContain('modelo=')
+    expect(await screen.findByRole('link', { name: 'Sem resposta há 30 dias' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Renomear/ })).not.toBeInTheDocument()
+    expect(leiturasDoIcp).toEqual([])
   })
 })
 

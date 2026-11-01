@@ -75,8 +75,6 @@ export interface PlanoParaSalvar {
   nome: string
   briefing: string
   plano: PlanoDoSinal
-  /** Origem do fluxo que criou o Monitoramento, para rastreabilidade. */
-  criadoVia?: 'sinais_novo' | 'composer' | 'modelo'
 }
 
 export type CodigoDoErroDoPlano = 'limite_diario' | 'sem_tipos' | 'falha'

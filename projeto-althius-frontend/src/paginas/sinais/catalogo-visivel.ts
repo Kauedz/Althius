@@ -34,11 +34,6 @@ export interface CardDoCatalogo {
 
 const TODOS = SLUGS_DE_NICHO
 
-/** A mesma comparação de texto usada pela busca visível do catálogo. Recebe campos já normalizados. */
-export function correspondeBuscaDoCatalogo(campos: string, termo: string): boolean {
-  return campos.includes(termo)
-}
-
 /** O preço em créditos, nas mesmas palavras de `signal_catalog.estimated_cost_label` (migração 20261017100000). */
 export function rotuloDoCusto(creditosPorConta: number, creditosPorExecucao?: number): string {
   if (creditosPorExecucao !== undefined) return `${creditosPorExecucao} créditos por execução`

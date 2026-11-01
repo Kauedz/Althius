@@ -6,7 +6,6 @@ describe('Catálogo único de Sinais', () => {
   it('mostra uma grade só, filtra por nicho e por família, e o pedido à equipe fica sempre visível', async () => {
     const { usuario } = renderizarApp('/sinais')
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
-    expect(screen.getByRole('region', { name: 'Modelos' })).toContainElement(catalogo)
     expect(within(catalogo).getByRole('heading', { level: 3, name: 'Abertura de vagas' })).toBeInTheDocument()
     expect(within(catalogo).queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
     expect(screen.queryByText('Em teste')).not.toBeInTheDocument()

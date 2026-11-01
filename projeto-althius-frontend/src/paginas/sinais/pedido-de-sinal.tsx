@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO } from '@/components/botoes'
 import { useDados, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
@@ -184,9 +184,6 @@ function ItemDoPedido({ pedido }: { pedido: PedidoDeSinal }) {
         <span className="selo">{ROTULO_DO_STATUS[pedido.status]}</span>
       </div>
       <p className="text-sm text-al-muted">{pedido.empresasOuNicho}</p>
-      {pedido.status === 'disponivel' && pedido.modeloId && (
-        <Link className="text-sm text-al-accent underline" to={`/sinais/novo?modelo=${encodeURIComponent(pedido.modeloId)}`}>Usar o Modelo</Link>
-      )}
     </li>
   )
 }
