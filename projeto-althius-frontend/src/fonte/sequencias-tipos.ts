@@ -102,6 +102,11 @@ export interface StepSequencia {
    * No máximo um; reordenar a lista não altera este id.
    */
   predecessorId?: string
+  /**
+   * Outro Contato da mesma Conta citado no texto. Só entra com evidência do tipo pedido
+   * (envio confirmado, resposta ou indicação). Ausente não cita ninguém.
+   */
+  referenciaContatoId?: string
 }
 
 export interface Sequencia {

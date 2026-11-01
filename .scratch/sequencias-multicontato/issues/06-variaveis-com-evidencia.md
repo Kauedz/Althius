@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Autorizar e executar caminhos independentes com limites
 
-**Status:** ready-for-agent
+**Status:** ready-for-human — 6/7 critérios verificados em 2026-10-31; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,13 +17,13 @@ Editor gráfico e inferência factual sem evidência. Nenhuma mudança estrutura
 
 ## Critérios de aceite
 
-- [ ] Variáveis usam Conta/Contato/Sinais reais e acessíveis; falta de evidência bloqueia passo com motivo.
-- [ ] Envio, resposta e indicação são distintos: tentativa não vira conversa/indicação.
-- [ ] Prévia mostra mensagem resolvida antes de autorizar; mudanças posteriores não alteram silenciosamente mensagem aprovada.
-- [ ] Destino autorizado continua fixo e validado na execução.
-- [ ] Passo local bloqueado não impede independente elegível; nunca enviar variável vazia.
-- [ ] Acesso a dados/evidências de outra Conta ou Workspace é recusado no servidor.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Variáveis usam Conta/Contato/Sinais reais e acessíveis; falta de evidência bloqueia passo com motivo. Evidência: `projeto-althius-frontend/src/fonte/variaveis-com-evidencia.test.ts:36`, `supabase/tests/variaveis_com_evidencia.sql:84`.
+- [x] Envio, resposta e indicação são distintos: tentativa não vira conversa/indicação. Evidência: `projeto-althius-frontend/src/fonte/variaveis-com-evidencia.test.ts:92`, `:120`; `supabase/tests/variaveis_com_evidencia.sql:226`.
+- [x] Prévia mostra mensagem resolvida antes de autorizar; mudanças posteriores não alteram silenciosamente mensagem aprovada. Evidência: `projeto-althius-frontend/src/fonte/variaveis-com-evidencia.test.ts:133`, `supabase/tests/variaveis_com_evidencia.sql:113`, `:160`.
+- [x] Destino autorizado continua fixo e validado na execução. Evidência: `supabase/tests/variaveis_com_evidencia.sql:133`, `:183`.
+- [x] Passo local bloqueado não impede independente elegível; nunca enviar variável vazia. Evidência: `supabase/functions/_shared/send-step-variaveis.test.ts:45`, `:60`; `supabase/tests/variaveis_com_evidencia.sql:128`.
+- [x] Acesso a dados/evidências de outra Conta ou Workspace é recusado no servidor. Evidência: `projeto-althius-frontend/src/fonte/variaveis-com-evidencia.test.ts:60`, `supabase/tests/variaveis_com_evidencia.sql:270`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: conferir aviso de prévia e motivo de bloqueio em desktop e viewport estreita; testes unitários e de integração passaram.
 
 ## Pode mexer
 

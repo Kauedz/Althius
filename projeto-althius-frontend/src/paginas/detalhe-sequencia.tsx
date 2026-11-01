@@ -2263,7 +2263,9 @@ function descreverEnvio(envio: EnvioDoPasso, canal: CanalStep): string {
     case 'sent':
       return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
     case 'awaiting_reconfirmation':
-      if (envio.ultimoErro?.startsWith('missing_variable:')) return `Não saiu: ${motivoDoEnvio(envio.ultimoErro)}.`
+      if (envio.ultimoErro?.startsWith('missing_variable:') || envio.ultimoErro === 'message_changed') {
+        return `Não saiu: ${motivoDoEnvio(envio.ultimoErro)}.`
+      }
       return envio.ultimoErro === 'contact_unlinked'
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
         : `O Contato não tem mais o ${nomeDoDestino(canal)} confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
