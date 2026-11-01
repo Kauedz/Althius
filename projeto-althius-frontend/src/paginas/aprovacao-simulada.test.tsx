@@ -1,7 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { navegarPara } from '@/test/navegar'
-import { renderizarApp, renderizarAppNoNavegador } from '@/test/renderizar'
+import { renderizarApp } from '@/test/renderizar'
 
 describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   it('após gravar a sequência na Conversa, surge Aprovação pendente identificando Conta-alvo e sequência', async () => {
@@ -59,7 +58,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   })
 
   it('aprovar na Conversa marca como aprovada e registra na Atividade sem disparar envio externo', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarApp('/')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -87,8 +86,12 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
     expect(within(secaoAprovacao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
     expect(within(secaoAprovacao).queryByRole('button', { name: 'Recusar' })).not.toBeInTheDocument()
 
-    // A Atividade do Rhetor (só leitura desde o Sinais first 10, e fora da barra lateral) registra a decisão
-    navegarPara('/agentes/rhetor/atividade')
+    // Navega para a página do Rhetor para conferir registro na Atividade
+    const navEspecialistas = screen.getByRole('navigation', { name: 'Especialistas' })
+    await usuario.click(within(navEspecialistas).getByRole('link', { name: /Rhetor/i }))
+
+    const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
+    await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
 
     // Ação registrada com gatilho e link para a sequência
     const itemAtividade = await screen.findByText(
@@ -104,7 +107,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   })
 
   it('a Aprovação gerada aparece na Fila de Aprovações (/aprovacoes) e pode ser rejeitada sem side-effects', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarApp('/')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -160,8 +163,11 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
       await within(navWorkspace).findByRole('link', { name: 'Aprovações, 2 pendentes' }),
     ).toBeInTheDocument()
 
-    // Na Atividade do Rhetor (só leitura), o registro reflete a rejeição sem envio externo
-    navegarPara('/agentes/rhetor/atividade')
+    // Na Atividade do Rhetor, o registro reflete a rejeição sem envio externo
+    const navEspecialistas = screen.getByRole('navigation', { name: 'Especialistas' })
+    await usuario.click(within(navEspecialistas).getByRole('link', { name: /Rhetor/i }))
+    const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
+    await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
 
     const itemAtividade = await screen.findByText(
       /Recusada na fila: Ativar sequência da Conta-alvo OpenAI/i,

@@ -6,7 +6,6 @@ import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, CanalId, Frequencia, NovaRotina, Rotina } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { descreverFrequencia, DIAS_DA_SEMANA, ROTULO_DA_FREQUENCIA, ROTULO_DO_CANAL } from '@/paginas/rotulos'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 const numero = new Intl.NumberFormat('pt-BR')
 
@@ -29,7 +28,6 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const { disponivel } = useAmbiente()
   const podeAdministrar = usePodeAdministrarAgentes()
-  const somenteLeitura = useSomenteLeituraDoAgente()
 
   return (
     <section aria-labelledby="titulo-rotinas" className="flex max-w-3xl flex-col gap-6">
@@ -40,7 +38,7 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
           </h2>
           <p className="text-al-muted">Tarefas que {agente.nome} executa sozinho, no horário combinado.</p>
         </div>
-        {!somenteLeitura && !criando && podeAdministrar && (
+        {!criando && podeAdministrar && (
           <Button onClick={() => setCriando(true)} className="px-6 tracking-[0.04em]">
             Nova rotina
           </Button>
@@ -90,7 +88,7 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
               <ItemDeRotina
                 key={rotina.id}
                 rotina={rotina}
-                podeAdministrar={!somenteLeitura && podeAdministrar}
+                podeAdministrar={podeAdministrar}
                 aoEditar={() => setEditandoId(rotina.id)}
               />
             ),

@@ -4,7 +4,6 @@ import { Carregando } from '@/components/marca'
 import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, Gatilho } from '@/fonte/tipos'
 import { ROTULO_DO_GATILHO } from '@/paginas/rotulos'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 export function SecaoAtividade({ agente }: { agente: Agente }) {
   const [gatilho, setGatilho] = useState<Gatilho | ''>('')
@@ -14,7 +13,6 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
   const itens = useDados((fonte) => fonte.atividade(agente.id, gatilho || undefined), [agente.id, gatilho])
   const fonte = useFonte()
   const { disponivel } = useAmbiente()
-  const somenteLeitura = useSomenteLeituraDoAgente()
 
   return (
     <section aria-labelledby="titulo-atividade" className="flex max-w-3xl flex-col gap-6">
@@ -61,7 +59,7 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
               <div className="flex flex-col gap-1">
                 <span className="font-normal">{item.descricao}</span>
                 <span className="text-al-muted">{item.resultado}</span>
-                {item.tentarDeNovo && !somenteLeitura && (
+                {item.tentarDeNovo && (
                   <button
                     type="button"
                     className="self-start text-sm underline underline-offset-4"

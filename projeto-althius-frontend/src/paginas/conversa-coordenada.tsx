@@ -111,7 +111,7 @@ function ConversaCoordenadaAtiva() {
           to="/"
           className="rounded-md inline-flex h-8 items-center border border-al-line px-4 text-sm font-normal tracking-[0.04em] hover:border-al-ink"
         >
-          Voltar para Agentes
+          Voltar para a grade
         </Link>
       }
       className="flex-1 pb-0"
@@ -189,7 +189,7 @@ function LeituraDoWhatsApp({ id }: { id: string }) {
       <div className="mx-auto flex w-full max-w-180 flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <MarcaDoWhatsApp />
-          <Link to="/" className="text-sm underline underline-offset-4">Voltar para Agentes</Link>
+          <Link to="/" className="text-sm underline underline-offset-4">Voltar para a grade</Link>
         </div>
         {erro && <p role="alert" className="text-sm text-al-atencao">{erro}</p>}
         <div aria-live="polite" className="flex flex-col gap-10 pb-10">

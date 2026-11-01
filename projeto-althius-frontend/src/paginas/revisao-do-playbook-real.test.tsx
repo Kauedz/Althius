@@ -191,10 +191,9 @@ describe('A revisão do Playbook na fila de Aprovações', () => {
 })
 
 describe('A revisão do Playbook no passo da Conversa', () => {
-  // Desde o Sinais first 10 a Conversa direta com o Scopus é só leitura: o pedido novo vai pela Coordenação da /.
   it('a Conversa mostra a proposta e o estado dela, e o Administrador aprova ali mesmo', async () => {
-    const { usuario, decisoes } = abrir('/', 'admin')
-    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode ajustar o ICP?')
+    const { usuario, decisoes } = abrir('/agentes/agente-scopus/conversa', 'admin')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' }), 'Ajuste o ICP')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
     expect(await screen.findByText(/Scopus propôs uma nova versão do ICP — aguardando Aprovação de um Administrador/))

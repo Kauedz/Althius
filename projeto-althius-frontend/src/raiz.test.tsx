@@ -122,9 +122,9 @@ describe('Workspace operacional e Demonstração', () => {
 
     expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
     expect(within(navegacao()).queryByText('Demonstração')).not.toBeInTheDocument()
-    // Os quatro Agentes saíram da navegação (Sinais first 10): nem os padrão do Workspace nem os criados da Demonstração.
-    expect(await within(navegacao()).findByRole('navigation', { name: 'Workspace' })).toBeInTheDocument()
-    expect(within(navegacao()).queryByRole('navigation', { name: 'Especialistas' })).not.toBeInTheDocument()
+    // A navegação lista os Agentes padrão do Workspace, e nenhum Agente criado da Demonstração.
+    const especialistas = await within(navegacao()).findByRole('navigation', { name: 'Especialistas' })
+    expect(within(especialistas).getAllByRole('link').map((link) => link.textContent)).toEqual(['Scopus', 'Ethos', 'Rhetor', 'Oraculum'])
   })
 
   it.each([

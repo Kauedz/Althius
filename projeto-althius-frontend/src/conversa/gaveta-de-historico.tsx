@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useFonte } from '@/fonte/contexto'
 import type { AgenteId, FonteDeAgentes, ResumoDeConversa } from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 import { agruparConversas } from './historico-grupos'
 import { LinhaDeConversa } from './linha-de-conversa'
 
@@ -166,8 +165,6 @@ export function GavetaDeHistorico(props: Props) {
 
 function Gaveta({ aberto, aoMudar, agenteId, nome, atual, aoAbrir, versao, agora }: Props) {
   const historico = useHistoricoDeConversas(agenteId, versao, aberto)
-  // Na página só leitura de um Agente antigo (Sinais first 10), o histórico abre e busca, sem renomear nem arquivar.
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const buscaRef = useRef<HTMLInputElement>(null)
   const retornoDoFoco = useRef<HTMLElement | null>(null)
   const estavaAberto = useRef(false)
@@ -282,10 +279,10 @@ function Gaveta({ aberto, aoMudar, agenteId, nome, atual, aoAbrir, versao, agora
                       nome={historico.nome}
                       aoMudarNome={historico.definirNome}
                       aoAbrir={() => void abrir(conversa)}
-                      aoIniciarRenome={historico.podeRenomear && !somenteLeitura ? () => historico.iniciarRenome(conversa) : undefined}
+                      aoIniciarRenome={historico.podeRenomear ? () => historico.iniciarRenome(conversa) : undefined}
                       aoCancelarRenome={historico.cancelarRenome}
                       aoSalvarNome={(evento) => void historico.salvarNome(evento, conversa.id)}
-                      aoArquivar={historico.podeArquivar && !somenteLeitura ? () => void historico.arquivar(conversa.id) : undefined}
+                      aoArquivar={historico.podeArquivar ? () => void historico.arquivar(conversa.id) : undefined}
                     />
                   ))}
                 </ul>

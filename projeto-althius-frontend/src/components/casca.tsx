@@ -16,7 +16,7 @@ import { createContext, useContext, useEffect, useState, type CSSProperties, typ
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvisoDeContratoInativo } from '@/components/aviso-de-contrato-inativo'
 import { LimiteDeErro } from '@/components/limite-de-erro'
-import { AvatarDePessoa } from '@/components/marca'
+import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, rotuloDoEstado } from '@/components/marca'
 import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
 import { LogoDoWorkspace } from '@/components/logos'
 import { RolagemDiscreta } from '@/components/rolagem-discreta'
@@ -112,13 +112,15 @@ function LogoDaBarra({ recolhida }: { recolhida: boolean }) {
 
 function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
   const recolhida = useContext(BarraRecolhida)
-  const { modo } = useAmbiente()
+  const { modo, disponivel } = useAmbiente()
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const fonteDeOnboarding = useFonteDeOnboarding()
   const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
   const progresso = onboarding && progressoDoOnboarding(onboarding)
   // O Workspace criado no onboarding se apresenta pelo que a pessoa informou; sem ele, vale o da demonstração.
   const doOnboarding = onboarding ? identidadeDoWorkspace(onboarding) : null
+  const agentes = useDados((fonte) => fonte.agentes(), [])
+  const agentesPadrao = agentes?.filter((agente) => agente.tipo === 'padrao')
   const cliente = doOnboarding?.nome || workspace?.cliente
   const descricao = doOnboarding?.descricao || workspace?.descricao
   const { pathname } = useLocation()
@@ -166,6 +168,27 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
       {/* A navegação rola sem barra; o logo e o Workspace em cima e a conta embaixo ficam parados. */}
       <RolagemDiscreta className={cn('flex min-h-0 flex-1 flex-col gap-6 py-2', lateral)}>
         {progresso?.pendente && <AtalhoDoOnboarding percentual={progresso.percentual} />}
+
+        {/* Um Workspace sem Agentes guardados não mostra o grupo vazio. */}
+        {agentesPadrao?.length !== 0 && (
+          <Secao titulo="Especialistas">
+            {agentesPadrao?.map((agente) => (
+              <ItemDeNavegacao
+                key={agente.id}
+                para={`/agentes/${agente.id}`}
+                ativo={pathname.startsWith(`/agentes/${agente.id}/`)}
+                icone={<IconeDaEspecialidade especialidade={agente.especialidade.id} />}
+                fim={
+                  <span title={rotuloDoEstado(agente.estado, disponivel('conversas'))}>
+                    <IndicadorDeEstado estado={agente.estado} />
+                  </span>
+                }
+              >
+                {agente.nome}
+              </ItemDeNavegacao>
+            ))}
+          </Secao>
+        )}
 
         <Secao titulo="Workspace">
           <ItemDeNavegacao para="/contas" ativo={naAbaDeContas} icone={<IconeDeNavegacao icone={Building2} />}>

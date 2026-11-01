@@ -121,15 +121,13 @@ function abrir(rota: string, salvas: Linha[], conversas: Record<string, unknown>
   return { usuario, renomeadas, enviados, subidos, acoes, cancelados }
 }
 
-// Desde o Sinais first 10 a Conversa direta com um Agente é só leitura: os anexos seguem no composer da /, num pedido
-// geral (uma pergunta), que vai à Conversa coordenada.
-const ROTA = '/'
+const ROTA = '/agentes/agente-scopus/conversa'
 const arquivo = (nome: string, tipo: string, tamanho = 10) => new File([new Uint8Array(tamanho)], nome, { type: tipo })
 
 describe('Composer com anexos', () => {
   it('anexa pelo +, remove pelo x e envia os anexos prontos com o pedido', async () => {
     const { usuario, enviados, subidos, acoes } = abrir(ROTA, [])
-    const composer = await screen.findByRole('form', { name: 'Pedido aos agentes' })
+    const composer = await screen.findByRole('form', { name: 'Conversa com Scopus' })
     await usuario.click(await within(composer).findByRole('button', { name: 'Anexar' }))
     expect(within(composer).getByRole('menuitem', { name: 'Anexar imagem' })).toBeInTheDocument()
     await usuario.upload(within(composer).getByLabelText('Escolher arquivos'), [arquivo('proposta.pdf', 'application/pdf'), arquivo('dados.csv', 'text/csv')])
@@ -138,22 +136,21 @@ describe('Composer com anexos', () => {
     await vi.waitFor(() => expect(acoes).toContainEqual({ action: 'remove', attachmentId: 'anexo-2' }))
     expect(subidos).toEqual(['proposta.pdf', 'dados.csv'])
 
-    await usuario.type(within(composer).getByRole('textbox', { name: 'Peça algo aos agentes' }), 'O que diz a proposta?')
+    await usuario.type(within(composer).getByRole('textbox', { name: 'Mensagem para Scopus' }), 'Leia a proposta')
     await usuario.click(within(composer).getByRole('button', { name: 'Enviar' }))
-    expect(await screen.findByRole('form', { name: 'Continuar a Conversa' })).toBeInTheDocument()
-    await screen.findByText('O que diz a proposta?')
-    expect(enviados.at(-1)).toEqual(expect.objectContaining({ text: 'O que diz a proposta?', attachments: ['anexo-1'] }))
+    await within(screen.getByRole('region', { name: 'Conversa' })).findByText('Leia a proposta')
+    expect(enviados.at(-1)).toEqual(expect.objectContaining({ text: 'Leia a proposta', attachments: ['anexo-1'] }))
     expect(screen.getByRole('button', { name: 'Abrir o anexo proposta.pdf' })).toBeInTheDocument()
   })
 
   it('recusa tipo fora da lista; arrastar e colar anexam', async () => {
     const { subidos } = abrir(ROTA, [])
-    const composer = await screen.findByRole('form', { name: 'Pedido aos agentes' })
+    const composer = await screen.findByRole('form', { name: 'Conversa com Scopus' })
     await within(composer).findByRole('button', { name: 'Anexar' })
     fireEvent.drop(composer, { dataTransfer: { files: [arquivo('video.mp4', 'video/mp4')], types: ['Files'] } })
     expect(await within(composer).findByRole('alert')).toHaveTextContent('só imagens')
     fireEvent.drop(composer, { dataTransfer: { files: [arquivo('planilha.xlsx', '')], types: ['Files'] } })
-    const campo = within(composer).getByRole('textbox', { name: 'Peça algo aos agentes' })
+    const campo = within(composer).getByRole('textbox', { name: 'Mensagem para Scopus' })
     const colar = createEvent.paste(campo)
     Object.defineProperty(colar, 'clipboardData', { value: { files: [arquivo('print.png', 'image/png')] } })
     fireEvent(campo, colar)
@@ -162,11 +159,10 @@ describe('Composer com anexos', () => {
 
   it('enquanto o Agente responde, o Enviar vira Parar e para o pedido', async () => {
     const { usuario, cancelados } = abrir(ROTA, [], {}, true)
-    const composer = await screen.findByRole('form', { name: 'Pedido aos agentes' })
-    await usuario.type(within(composer).getByRole('textbox', { name: 'Peça algo aos agentes' }), 'Por que demora?')
+    const composer = await screen.findByRole('form', { name: 'Conversa com Scopus' })
+    await usuario.type(within(composer).getByRole('textbox', { name: 'Mensagem para Scopus' }), 'Demora')
     await usuario.click(within(composer).getByRole('button', { name: 'Enviar' }))
-    const continuar = await screen.findByRole('form', { name: 'Continuar a Conversa' })
-    await usuario.click(await within(continuar).findByRole('button', { name: 'Parar' }))
+    await usuario.click(await within(composer).findByRole('button', { name: 'Parar' }))
     await vi.waitFor(() => expect(cancelados).toEqual(['run-aberto']))
   })
 })

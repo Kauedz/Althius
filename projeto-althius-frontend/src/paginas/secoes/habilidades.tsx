@@ -5,7 +5,6 @@ import { useDados, useFonte } from '@/fonte/contexto'
 import { DOCUMENTOS_DA_MEMORIA, frasesDo, USO_NA_HABILIDADE } from '@/fonte/regras-memoria'
 import type { Agente } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 export function SecaoHabilidades({ agente }: { agente: Agente }) {
   const fonte = useFonte()
@@ -13,7 +12,6 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
   const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
   const podeAdministrar = usePodeAdministrarAgentes()
   const { erro, escrever } = useEscritaDeAgente()
-  const somenteLeitura = useSomenteLeituraDoAgente()
 
   return (
     <section aria-labelledby="titulo-habilidades" className="flex max-w-3xl flex-col gap-6">
@@ -53,7 +51,7 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
                 <Switch
                   aria-label={habilidade.nome}
                   checked={habilidade.ativa}
-                  disabled={somenteLeitura || !podeAdministrar}
+                  disabled={!podeAdministrar}
                   onCheckedChange={(ativa) => escrever(() => fonte.definirHabilidadeAtiva(habilidade.id, ativa))}
                 />
               </div>

@@ -170,8 +170,7 @@ describe('A Conversa do Slack na Althius', () => {
     expect(enviados).toEqual([])
   })
 
-  // Sinais first 10: a Conversa da Althius com o Agente ficou só leitura; voltar leva a ela, sem composer nem sugestões.
-  it('voltar leva à Conversa da Althius com o Agente, agora só para leitura', async () => {
+  it('voltar leva à Conversa da Althius com o Agente, que continua respondendo pela Althius', async () => {
     const { usuario } = abrir('/agentes/agente-scopus/conversa?slack=c-slack')
 
     const leitura = await screen.findByRole('region', { name: 'Conversa do Slack' })
@@ -181,10 +180,8 @@ describe('A Conversa do Slack na Althius', () => {
 
     expect(screen.queryByRole('region', { name: 'Conversa do Slack' })).not.toBeInTheDocument()
     expect(screen.queryByText('Esta Conversa continua no Slack')).not.toBeInTheDocument()
-    expect(await screen.findByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
-    expect(window.location.search).toBe('')
-    expect(screen.queryByRole('textbox', { name: 'Mensagem para Scopus' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).toBeInTheDocument()
   })
 
   it('uma Conversa que não é deste Agente não abre aqui', async () => {
