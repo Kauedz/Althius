@@ -203,7 +203,8 @@ alter table private.approvals add constraint approvals_category_shape check (
 
 -- 5. O Scopus propõe a Aderência de uma Conta. Só o servidor, a partir de uma Execução em andamento. Confere que o Agente
 --    é do Workspace da Execução e da Especialidade Scopus, que quem pediu ainda participa, que a Conta existe, tem
---    Vendedor responsável (é ele quem decide) e não tem já essa Aderência, e que Não fit traz o motivo. Nasce sempre
+--    Vendedor responsável (é ele quem decide) e não tem já essa Aderência com esse motivo, e que Não fit traz o motivo.
+--    Nasce sempre
 --    pendente. A mesma proposta repetida na mesma Execução devolve a Aprovação que já existe (`existente`). Os erros
 --    começam com "fit:" para a ferramenta dizer o motivo ao Agente.
 create function public.agent_propose_account_fit(
@@ -260,6 +261,7 @@ begin
   if exists (
     select 1 from private.account_fit f
     where f.workspace_id = v_run.workspace_id and f.target_account_id = p_target_account_id and f.fit = p_fit
+      and f.reason = v_reason
   ) then
     raise exception 'fit: the target account already has this fit' using errcode = '22023';
   end if;
@@ -301,7 +303,8 @@ grant execute on function public.agent_propose_account_fit(uuid, uuid, uuid, tex
 
 -- 6. `decide_approval` (corpo de 20261105100000) com a Aderência proposta: só o Vendedor responsável pela Conta-alvo a
 --    decide, como a Sequência. Recusar só registra. Aprovar grava a Aderência (o Scopus avaliou, quem aprovou fica
---    registrado) e move o cartão; se a Conta não existe mais, a Aprovação é recusada pelo sistema, com o motivo. As
+--    registrado) e move o cartão. A Aprovação é recusada pelo sistema, com o motivo, se a Conta não existe mais ou se a
+--    Aderência dela mudou depois da proposta: a proposta partiu de outra avaliação e não sobrescreve a mais nova. As
 --    outras categorias seguem exatamente como antes.
 create or replace function public.decide_approval(p_approval_id uuid, p_decision text, p_where text default 'fila')
 returns text
@@ -319,6 +322,7 @@ declare
   v_contact text;
   v_document jsonb;
   v_sequence public.sequences;
+  v_applied boolean;
 begin
   if p_decision not in ('aprovar', 'recusar') then
     raise exception 'unknown decision' using errcode = '22023';
@@ -437,12 +441,19 @@ begin
       select 1 from public.target_accounts a
       where a.id = v.target_account_id and a.workspace_id = v.workspace_id and a.deleted_at is null
     ) then
+      v_reason := 'a Conta-alvo não existe mais';
+    elsif exists (
+      select 1 from private.account_fit f
+      where f.workspace_id = v.workspace_id and f.target_account_id = v.target_account_id and f.decided_at > v.created_at
+    ) then
+      v_reason := 'a Aderência da Conta-alvo mudou depois da proposta';
+    end if;
+    if v_reason is not null then
       update private.approvals set
         state = 'recusada', decided_by_kind = null, decided_by = null, decided_where = p_where, decided_at = now(),
-        failure = 'a Conta-alvo não existe mais', updated_at = now()
+        failure = v_reason, updated_at = now()
       where id = v.id;
-      perform private.approval_transition(v.id, 'pendente', 'recusada', null,
-        'recusada pelo sistema: a Conta-alvo não existe mais');
+      perform private.approval_transition(v.id, 'pendente', 'recusada', null, 'recusada pelo sistema: ' || v_reason);
       return 'recusada';
     end if;
 
@@ -450,9 +461,10 @@ begin
       state = 'aprovada', decided_by_kind = 'pessoa', decided_by = auth.uid(), decided_where = p_where,
       decided_at = now(), updated_at = now()
     where id = v.id;
-    perform private.apply_account_fit(v.workspace_id, v.target_account_id, v.payload ->> 'aderencia',
+    v_applied := private.apply_account_fit(v.workspace_id, v.target_account_id, v.payload ->> 'aderencia',
       v.payload ->> 'motivo', 'agente', auth.uid(), v.agent_id, v.id);
-    perform private.approval_transition(v.id, 'pendente', 'aprovada', auth.uid(), 'Aderência gravada');
+    perform private.approval_transition(v.id, 'pendente', 'aprovada', auth.uid(),
+      case when v_applied then 'Aderência gravada' else 'a Conta-alvo já tinha essa Aderência' end);
     return 'aprovada';
   end if;
 

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(38);
+select plan(42);
 
 -- A Aderência da Conta-alvo gravada (kanban-de-prospeccao 08). Norte: Bia (Membro, Vendedora responsável pelas Contas),
 -- Ana (Administradora, não é responsável) e Caio (Membro, pede ao Scopus numa Conversa dele). Sul: Davi.
@@ -182,8 +182,8 @@ select throws_ok(
 );
 select throws_ok(
   $$select * from pg_temp.propor('af000000-0000-0000-0000-000000000001',
-    pg_temp.agente('ff000000-0000-0000-0000-000000000001', 'scopus'), pg_temp.id('alfa'), 'fit', '')$$,
-  '22023', 'fit: the target account already has this fit', 'a Conta já tem essa Aderência'
+    pg_temp.agente('ff000000-0000-0000-0000-000000000001', 'scopus'), pg_temp.id('alfa'), 'fit', 'Abriu operação privada')$$,
+  '22023', 'fit: the target account already has this fit', 'a Conta já tem essa Aderência, com esse motivo'
 );
 select throws_ok(
   $$select * from pg_temp.propor('af000000-0000-0000-0000-000000000002',
@@ -249,7 +249,37 @@ select is(public.decide_approval(pg_temp.id('p2'), 'recusar'), 'recusada', 'a Ve
 select ok(pg_temp.aderencia(pg_temp.id('epsilon')) = 'fit' and pg_temp.estagio(pg_temp.id('epsilon')) = 'fit',
   'recusar não muda a Aderência nem o cartão');
 
--- 12. Uma Aprovação de Aderência sem a Aderência no payload não existe.
+-- 12. A Aderência mudou depois da proposta: aprovar não sobrescreve a avaliação mais nova.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+insert into ids select 'p3', approval_id from pg_temp.propor('af000000-0000-0000-0000-000000000001',
+  pg_temp.agente('ff000000-0000-0000-0000-000000000001', 'scopus'), pg_temp.id('beta'), 'nao_fit', 'Fora do ICP');
+-- A proposta nasceu antes de a Bia mudar o motivo (now() é o mesmo na transação de teste).
+update private.approvals set created_at = now() - interval '1 minute' where id = pg_temp.id('p3');
+select pg_temp.entrar_como('5f000000-0000-0000-0000-000000000001');
+select public.set_account_fit('ff000000-0000-0000-0000-000000000001', pg_temp.id('beta'), 'fit', 'Vendas crescendo');
+update private.account_fit set decided_at = clock_timestamp() where target_account_id = pg_temp.id('beta');
+select is(public.decide_approval(pg_temp.id('p3'), 'aprovar'), 'recusada', 'proposta antiga é recusada pelo sistema');
+select ok(
+  pg_temp.aderencia(pg_temp.id('beta')) = 'fit'
+    and (select failure from private.approvals where id = pg_temp.id('p3')) = 'a Aderência da Conta-alvo mudou depois da proposta',
+  'com o motivo, e a Aderência mais nova fica'
+);
+
+-- 13. O Scopus pode propor a mesma Aderência com outro motivo.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select is(
+  (select outcome from pg_temp.propor('af000000-0000-0000-0000-000000000001',
+    pg_temp.agente('ff000000-0000-0000-0000-000000000001', 'scopus'), pg_temp.id('beta'), 'fit', 'Abriu filial no Sul')),
+  'pendente', 'a mesma Aderência com outro motivo vira proposta'
+);
+select is(
+  (select note from private.approval_events where approval_id = pg_temp.id('p1') and to_state = 'aprovada'),
+  'Aderência gravada', 'a aprovação registra que a Aderência foi gravada'
+);
+
+-- 14. Uma Aprovação de Aderência sem a Aderência no payload não existe.
 reset role;
 select throws_ok(
   $$insert into private.approvals (workspace_id, agent_id, action, payload, payload_hash, target_account_id, category)

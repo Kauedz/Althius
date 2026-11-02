@@ -11,8 +11,9 @@ import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import { podeDecidir } from '@/fonte/regras'
 import type { AprovacaoDeAderencia, Decisao } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
+import { ROTULO_DA_ADERENCIA } from './ordem-da-aderencia'
 
-const ROTULO = { fit: 'Fit', 'nao-fit': 'Não fit' } as const
+const ROTULO = ROTULO_DA_ADERENCIA
 
 /** O fim da proposta em uma linha. */
 function rotuloDoFim(aprovacao: AprovacaoDeAderencia): string {

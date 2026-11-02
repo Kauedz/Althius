@@ -1,5 +1,8 @@
 import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
 
+/** O nome de cada Aderência na tela. */
+export const ROTULO_DA_ADERENCIA: Record<Aderencia, string> = { fit: 'Fit', 'nao-fit': 'Não fit' }
+
 /**
  * Os grupos da Prioridade no menu de filtros e na ordem: Quente, Fit e Não fit. Quente não é Aderência (ADR 0007):
  * vem dos Sinais válidos da conta. Os dois só se juntam aqui, para ordenar e filtrar.

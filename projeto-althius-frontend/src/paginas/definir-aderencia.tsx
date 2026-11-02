@@ -10,12 +10,13 @@ import {
 } from '@/components/ui/dialog'
 import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
 import { useFonteDeContas } from '@/fonte/contexto'
+import { ROTULO_DA_ADERENCIA } from './ordem-da-aderencia'
 
 const BOTAO_SECUNDARIO = 'h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 const BOTAO_PRIMARIO =
   'rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50'
 
-const ROTULO: Record<Aderencia, string> = { fit: 'Fit', 'nao-fit': 'Não fit' }
+const ROTULO = ROTULO_DA_ADERENCIA
 
 /**
  * O Vendedor responsável define a Aderência da Conta-alvo (kanban-de-prospeccao 08): Fit ou Não fit, com o motivo.
@@ -71,7 +72,7 @@ export function DefinirAderencia({ conta }: { conta: ContaAlvo }) {
               conta={conta}
               aderencia={escolha}
               aoConcluir={() => {
-                setResultado(`${ROTULO[escolha]} gravado. A mudança fica no histórico da Conta.`)
+                setResultado(`${ROTULO[escolha]} gravado, com o motivo e quem avaliou.`)
                 setEscolha(null)
               }}
               aoCancelar={() => setEscolha(null)}
