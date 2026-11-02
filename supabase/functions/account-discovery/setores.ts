@@ -1,8 +1,8 @@
 // O vocabulário de setores da Aderência. O ICP é escrito em português ("Logística", "Corretora de seguros"); o LinkedIn
 // declara a indústria em inglês ("Truck Transportation", "Insurance Agencies and Brokerages") e a Receita, a atividade
 // pelo CNAE em português ("Transporte rodoviário de carga"). Cada raiz liga um setor do ICP aos nomes que as fontes usam.
-// O termo do próprio ICP sempre vale também. O espelho no banco é `private.icp_sector_matches` (migração
-// 20261218000000): mudar uma lista aqui pede a mesma mudança lá.
+// O termo do próprio ICP sempre vale também. O espelho que existia no banco (`private.icp_sector_matches`) saiu com o
+// ICP estruturado (migração 20261219030000).
 import { contemAlgum, normalizar } from '../signal-runner/adaptadores/comum.ts'
 
 const LOGISTICA = [

@@ -6,7 +6,7 @@
 
 **Blocked by:** 05, 06 e 08 (nenhum código pode estar chamando o que esta migration remove)
 
-**Decisões:** ADR-0034, decisão 6. Decisão a confirmar: Aderência das empresas achadas por Sinal (padrão recomendado: `sem_dado`).
+**Decisões:** ADR-0034, decisão 6. Aderência das empresas achadas por Sinal: `sem_dado` (decidido pelo dono do produto em 02/11/2026).
 
 ## O que construir
 
@@ -34,11 +34,11 @@ Uma migration nova, nesta ordem (os gatilhos ficam em tabelas centrais, então s
 
 ## Critérios
 
-- [ ] Inserir uma versão do Playbook `icp` não grava nada em `workspace_icp_versions`. (pgTAP.)
-- [ ] Criar Workspace e salvar o mini-ICP no Day0 funcionam e gravam os 3 campos. (pgTAP.)
-- [ ] `list_discovered_accounts` devolve `sem_dado` para `origin = 'sinal'` e o mesmo de antes para as demais. (pgTAP.)
-- [ ] A explicação da Aderência traz o ICP do Playbook. (pgTAP.)
-- [ ] `supabase db reset && supabase test db` verde três vezes seguidas.
+- [x] Inserir uma versão do Playbook `icp` não grava nada em `workspace_icp_versions`. (pgTAP `sem_icp_estruturado.sql`.)
+- [x] Criar Workspace e salvar o mini-ICP no Day0 funcionam e gravam os 3 campos. (pgTAP `sem_icp_estruturado.sql` para o Day0; `workspace_da_empresa.sql` e `day0_operacional.sql`, sem mudança, para o resto.)
+- [x] `list_discovered_accounts` devolve `sem_dado` para `origin = 'sinal'` e o mesmo de antes para as demais. (pgTAP `sem_icp_estruturado.sql`: as achadas por Sinal de mercado; a da Busca segue com o nível dela.)
+- [x] A explicação da Aderência traz o ICP do Day0. (pgTAP `sem_icp_estruturado.sql`.) Mudança de rumo: a `account-fit-explanation` só lê `setor`, `porte`, `geografia` e `oQueVende`; o texto do Playbook não tem campo ali sem mudar a função. Fica só `oQueVende` do Day0, e `icp` nulo sem ele.
+- [ ] `supabase db reset && supabase test db` verde. (Sem Docker na máquina: a validação é o job Banco do CI.)
 
 ## Passos do Nan
 
