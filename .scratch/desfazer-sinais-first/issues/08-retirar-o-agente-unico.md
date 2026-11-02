@@ -1,6 +1,6 @@
 # 08: Retirar o agente único do servidor
 
-**Status:** needs-hermes
+**Status:** needs-hermes (código pronto; falta tirar a função do ar, ver Passos do Nan)
 
 **Hermes:** sim (tira a Edge Function `agente` do ar)
 
@@ -30,8 +30,8 @@ Com a tela retirada no 01, o agente único (Fase 3a e o que veio em cima: Fase 4
 
 ## Critérios
 
-- [ ] Nenhum arquivo fora das pastas removidas importa `_shared/agente/` ou `_shared/icp-do-crm/`. (`deno check` de todas as funções.)
-- [ ] `deno test` verde, incluindo `_hermes-worker`.
+- [x] Nenhum arquivo fora das pastas removidas importa `_shared/agente/` ou `_shared/icp-do-crm/`. (`deno check supabase/functions/*/index.ts` limpo; nem o frontend nem o e2e chamam a função `agente`.)
+- [x] `deno test` verde, incluindo `_hermes-worker` (1937 passam). O ramo `purpose = 'agente'` de `_hermes-worker/sinais-ia.ts` ficou, ocioso, para não exigir reiniciar o Hermes.
 
 ## Passos do Nan
 
