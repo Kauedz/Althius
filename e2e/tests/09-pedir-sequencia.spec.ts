@@ -114,7 +114,7 @@ test('Gerar Sequência abre uma Conversa nova com o Rhetor e sem escrever', asyn
     testInfo.annotations.push({ type: 'url', description: `${antes} -> ${page.url()}` })
     await testInfo.attach('depois-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
   }
-  await expect(page.getByRole('form', { name: 'Continuar a Conversa' })).toBeVisible()
+  await expect(page.getByRole('form', { name: 'Conversa com Rhetor' })).toBeVisible()
   await expect(page.getByText(/Monte uma Sequência de e-mail para a Conta-alvo Conta Smoke 11/).first()).toBeVisible()
   await expect.poll(() => pedidos.length).toBe(1)
   const pedido = pedidos[0]
