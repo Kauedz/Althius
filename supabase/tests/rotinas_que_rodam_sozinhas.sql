@@ -3,6 +3,18 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(89);
 
+create function pg_temp.semear_agentes_padrao(p_workspace_id uuid) returns void language plpgsql as $$
+begin
+  with novos as (insert into private.agents (workspace_id, specialty, kind)
+    select p_workspace_id, c.specialty, 'padrao' from private.specialty_catalog c
+    on conflict do nothing returning id, workspace_id, specialty), configuracao as (
+    insert into private.agent_settings (agent_id, workspace_id, channels)
+    select n.id, n.workspace_id, array['whatsapp']::text[] from novos n)
+  insert into private.agent_permissions (agent_id, workspace_id, integration_id, permission)
+  select n.id, n.workspace_id, d.integration_id, d.permission from novos n
+  join private.specialty_default_permissions d on d.specialty = n.specialty;
+end; $$;
+
 -- Rotinas que rodam sozinhas (orquestracao, ticket 01). O pg_cron cria uma Execução do tipo `rotina` na mesma fila de
 -- private.agent_runs quando chega a hora de cada Rotina ativa; o worker não muda. Cada Rotina tem o teto mensal dela
 -- (escopo `rotina:<id>`), e sem teto aprovado ela não roda.
@@ -20,6 +32,8 @@ values
 insert into public.workspaces (id, kind, name) values
   ('6f000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('6f000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+select pg_temp.semear_agentes_padrao('6f000000-0000-0000-0000-000000000001');
+select pg_temp.semear_agentes_padrao('6f000000-0000-0000-0000-000000000002');
 insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 select public.grant_credits(w.id, 1000, 'plano', 'saldo de teste') from public.workspaces w where w.id <> 'e0a17e00-0000-4000-8000-000000000001'; -- a rodada de Agente sempre reserva (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
