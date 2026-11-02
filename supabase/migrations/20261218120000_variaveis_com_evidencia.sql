@@ -289,11 +289,28 @@ declare
   v_step jsonb;
   v_contact public.contacts;
   v_parts record;
+  v_step_ids text[];
 begin
+  if new.document is null or new.document = '{}'::jsonb
+     or coalesce(jsonb_array_length(case when jsonb_typeof(new.document -> 'steps') = 'array'
+       then new.document -> 'steps' else '[]'::jsonb end), 0) = 0 then
+    delete from private.authorized_message_snapshots where authorization_id = new.id;
+    return new;
+  end if;
+
   select s.* into v_sequence from public.sequences s where s.id = new.sequence_id;
   if not found then
     return new;
   end if;
+
+  select coalesce(array_agg(value ->> 'id'), '{}') into v_step_ids
+  from jsonb_array_elements(case when jsonb_typeof(new.document -> 'steps') = 'array'
+    then new.document -> 'steps' else '[]'::jsonb end)
+  where nullif(btrim(coalesce(value ->> 'id', '')), '') is not null;
+
+  delete from private.authorized_message_snapshots
+  where authorization_id = new.id and step_id <> all (v_step_ids);
+
   select a.* into v_account from public.target_accounts a
   where a.workspace_id = v_sequence.workspace_id and a.id::text = v_sequence.target_account_id;
   select coalesce(nullif(btrim(u.raw_user_meta_data ->> 'full_name'), ''),
@@ -316,7 +333,8 @@ begin
     from private.rendered_step_parts(v_step, v_account, v_contact, v_owner_name) p;
     insert into private.authorized_message_snapshots (authorization_id, step_id, subject, body)
     values (new.id, v_step ->> 'id', coalesce(v_parts.subject, ''), coalesce(v_parts.body, ''))
-    on conflict (authorization_id, step_id) do nothing;
+    on conflict (authorization_id, step_id) do update
+      set subject = excluded.subject, body = excluded.body;
   end loop;
   perform set_config('althius.step_json', '', true);
   return new;
@@ -326,8 +344,27 @@ $$;
 revoke all on function private.freeze_authorized_messages() from public, anon, authenticated, service_role;
 
 create trigger sequence_authorizations_freeze_messages
-  after insert on private.sequence_authorizations
+  after insert or update of document on private.sequence_authorizations
   for each row execute function private.freeze_authorized_messages();
+
+create function private.erase_contact_indications_of_deleted_account()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from private.contact_indications where target_account_id = new.id;
+  return null;
+end;
+$$;
+
+revoke all on function private.erase_contact_indications_of_deleted_account() from public, anon, authenticated, service_role;
+
+create trigger target_accounts_erase_contact_indications
+  after update of deleted_at on public.target_accounts
+  for each row when (old.deleted_at is null and new.deleted_at is not null)
+  execute function private.erase_contact_indications_of_deleted_account();
 
 -- null quando o passo pode seguir. Caso contrário, o motivo gravado em last_error.
 create function private.step_evidence_hold_reason(p_send_id uuid)
@@ -433,6 +470,12 @@ begin
       return;
     end if;
 
+    if private.sequence_contact_is_paused(v_send.sequence_id, v_send.contact_id) then
+      return query select 'contact_paused', v_send.id, null::text, null::text, null::text,
+        null::text, null::text, null::text, null::text, null::text, null::text;
+      return;
+    end if;
+
     if v_send.status in ('scheduled', 'confirmed') and v_sequence.status = 'ativa' then
       v_step := case when v_send.authorization_id is not null
         then private.authorized_step(v_send.authorization_id, v_send.step_id)
@@ -507,6 +550,11 @@ begin
   if v_send.channel in ('whatsapp', 'linkedin') then
     select s.* into v_sequence from public.sequences s where s.id = v_send.sequence_id for update;
     select e.* into v_send from private.sequence_step_sends e where e.id = p_send_id for update;
+    if private.sequence_contact_is_paused(v_send.sequence_id, v_send.contact_id) then
+      return query select 'contact_paused', v_send.id, null::text, null::text, null::text, null::text,
+        null::text, null::text, null::text, null::text, null::boolean, null::integer;
+      return;
+    end if;
     if v_send.status in ('scheduled', 'confirmed') and v_sequence.status = 'ativa' then
       v_reason := private.step_evidence_hold_reason(v_send.id);
       if v_reason is not null then
