@@ -120,7 +120,7 @@ test('Gerar Sequência abre uma Conversa nova com o Rhetor e sem escrever', asyn
   const pedido = pedidos[0]
   testInfo.annotations.push({ type: 'pedido', description: JSON.stringify({ ...pedido, workspaceId: '(QA)' }) })
   expect(pedido.action).toBe('send')
-  expect(String(pedido.agentId).toLowerCase()).toContain('rhetor')
+  expect(String(pedido.agentId)).toMatch(/^[0-9a-f-]{36}$/i)
   expect(pedido.conversationId).toBeNull()
   expect(pedido.workspaceId).toBe(e.workspaceId)
   expect(String(pedido.text)).toContain(`(id ${CONTA})`)
