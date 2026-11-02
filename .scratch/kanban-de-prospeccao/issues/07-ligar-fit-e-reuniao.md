@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 e 02 (fechados). A Parte B depende do ticket 08 (Aderência da Conta-alvo gravada).
 
-**Status:** ready-for-agent (Parte A, Reunião); a Parte B, Fit e Não fit, é entregue pelo ticket 08
+**Status:** closed (Parte A verificada em 2026-11-02); a Parte B, Fit e Não fit, é entregue pelo ticket 08
 
 ## Contexto
 
@@ -64,3 +64,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - 2026-11-02: aberto a partir da avaliação da spec contra a `main` dca7e3bf; o ticket 02 está fechado, mas três dos oito eventos não têm quem os chame.
 - 2026-11-02: o dono do produto escolheu a Aderência gravada; Fit e Não fit saíram para o ticket 08.
 - 2026-11-02: Parte A entregue: gatilho `send_outcomes_prospecting` (migration `20261220000000_reuniao_move_o_cartao.sql`) e pgTAP `reuniao_move_o_cartao.sql` (11/11; suíte inteira verde do zero). Falta aplicar no remoto (Passos do Nan).
+- 2026-11-02: migration aplicada no remoto pelo `execute_sql`: validação com rollback ok, pgTAP no remoto 11/11 (falhas 0), md5 `4fb507d2315b94c5286d705942e63c62` confere. Advisors: nada novo ligado ao gatilho; os avisos de `send_outcomes` e `list_send_outcomes` já existiam.
