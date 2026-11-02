@@ -160,6 +160,7 @@ select is(
     'e6000000-0000-0000-0000-000000000001')),
   'message_changed', 'Sinal que aparece depois da autorização não altera a mensagem em silêncio');
 
+select pg_temp.relogio('2026-09-30 10:05-03');
 select is(
   (select outcome || ' | ' || subject || ' | ' || body || ' | ' || destination
     from public.release_sequence_step_send(
