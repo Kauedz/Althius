@@ -86,7 +86,8 @@ Deno.test('o Ethos não recebe propor_sequencia: só o Rhetor pode propor', asyn
   const m = montar([PEDIDO, 'Propus a Sequência; ela espera a sua Aprovação.\nSTATUS: pronto'], ETHOS)
   await m.worker.rodada()
   assert(!m.chamadas[0].instructions.includes('### propor_sequencia'))
-  assertEquals(m.propostas.length, 0)
+  assertEquals(m.propostas.length, 1)
+  assert(m.propostas[0].includes(':a-ethos:'))
 })
 
 // A recusa chega ao Rhetor pelo histórico: o banco (`claim_agent_run`) termina a resposta da Execução que propôs com o
