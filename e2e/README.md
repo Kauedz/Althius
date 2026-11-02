@@ -48,4 +48,3 @@ O login com senha de produção tem CAPTCHA (Turnstile), que um robô não resol
 - O Workspace "QA Althius (automação)" é só do QA: sem Contas-alvo nem Contatos reais, sem créditos, sem canais conectados, sem Automação e com o Teto interno no mínimo. Ele não consegue enviar LinkedIn, WhatsApp nem e-mail, nem disparar uma varredura paga.
 - Os testes nunca ativam Sinal, enviam mensagem, conectam canal, compram ou criam Sequência.
 - O ICP de teste (logística e transporte, 51 a 200 funcionários, Sul do Brasil e México) entra, quando falta, como uma versão nova da seção ICP do Playbook pela RPC `save_playbook_section` (ADR-0034), com a sessão do QA e só no Workspace QA.
-- O teste 06 confere também os critérios do Plano: com o Briefing sem lugar, a geografia do ICP tem que virar `localizacao` = `["Brasil"]`.

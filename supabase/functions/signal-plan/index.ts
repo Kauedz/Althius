@@ -48,23 +48,22 @@ const db: Db = {
     return { pedidoId: resposta.requestId, tipos: resposta.tipos.filter((t): t is string => typeof t === 'string') }
   },
   async lerIcp({ workspaceId, authorization, apikey }): Promise<ContextoIcp | null> {
-    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('get_my_workspace_icp', {
-      p_workspace_id: workspaceId,
-    })
-    if (error) throw new Error(error.code ?? 'icp_indisponivel')
-    const icp = data as Record<string, unknown> | null
-    if (!icp || typeof icp.version !== 'number') return null
-    const texto = (campo: string) => typeof icp[campo] === 'string' ? icp[campo] as string : ''
-    return {
-      sector: texto('sector'),
-      companySize: texto('companySize'),
-      geography: texto('geography'),
-      targetRoles: Array.isArray(icp.targetRoles) ? icp.targetRoles.filter((papel): papel is string => typeof papel === 'string') : [],
-      freeText: texto('freeText'),
-      oQueVende: texto('oQueVende'),
-      miniIcp: texto('miniIcp'),
-      porQueCompram: texto('porQueCompram'),
-    }
+    const cliente = clienteDaSessao(authorization, apikey)
+    const [secao, day0] = await Promise.all([
+      cliente.rpc('get_playbook_section', { p_workspace_id: workspaceId, p_section: 'icp' }),
+      cliente.rpc('get_my_day0', { p_workspace_id: workspaceId }),
+    ])
+    if (secao.error) throw new Error(secao.error.code ?? 'icp_indisponivel')
+    const conteudo = (secao.data as { content?: { texto?: unknown; linhas?: unknown } | null } | null)?.content
+    const linhas = Array.isArray(conteudo?.linhas)
+      ? conteudo.linhas.map((linha) => linha && typeof linha === 'object' ? Object.values(linha).filter((v) => typeof v === 'string' && v.trim()).join(' | ') : '')
+      : []
+    const playbook = [typeof conteudo?.texto === 'string' ? conteudo.texto.trim() : '', ...linhas].filter(Boolean).join('\n')
+    // O mini-ICP do Day0 é um complemento: sem ele (erro ou Day0 vazio), o Plano segue só com o Playbook.
+    const mini = (day0.error ? null : day0.data) as Record<string, unknown> | null
+    const texto = (campo: string) => typeof mini?.[campo] === 'string' ? (mini[campo] as string).trim() : ''
+    const icp = { playbook, oQueVende: texto('oQueVende'), miniIcp: texto('miniIcp'), porQueCompram: texto('porQueCompram') }
+    return Object.values(icp).some(Boolean) ? icp : null
   },
   async fecharPedido({ workspaceId, pedidoId, resultado, authorization, apikey }: {
     workspaceId: string

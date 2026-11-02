@@ -1,6 +1,6 @@
 # 05: Servidor lê o ICP do Playbook
 
-**Status:** needs-hermes
+**Status:** needs-hermes (código pronto; falta publicar as funções, ver Passos do Nan)
 
 **Hermes:** sim (publica de novo `account-discovery`, `signal-plan` e `account-fit-explanation`)
 
@@ -31,9 +31,9 @@ As Edge Functions param de chamar `get_my_workspace_icp` e voltam a ler o ICP da
 
 ## Critérios
 
-- [ ] Nenhuma das três funções chama `get_my_workspace_icp`. (`git grep` no PR e Deno.)
-- [ ] A busca de empresas monta os critérios pelo Playbook `icp`. (Deno `account-discovery/handler.test.ts`.)
-- [ ] O Plano do Sinal recebe o ICP do Playbook no prompt. (Deno `signal-plan/handler.test.ts`.)
+- [x] Nenhuma das três funções chama `get_my_workspace_icp`. (`git grep` vazio em `account-discovery`, `signal-plan` e `account-fit-explanation`.)
+- [x] A busca de empresas monta os critérios pelo Playbook `icp`. (Deno `account-discovery/handler.test.ts`: "os filtros saem da seção ICP do Playbook" e "sem a seção ICP do Playbook, temIcp é falso".)
+- [x] O Plano do Sinal recebe o ICP do Playbook no prompt. (Deno `signal-plan/handler.test.ts`: o prompt leva o texto do Playbook e o mini-ICP; o servidor não põe mais a geografia do ICP em `localizacao`. `account-fit-explanation` aceita `icp` nulo, com teste novo.)
 
 ## Passos do Nan
 

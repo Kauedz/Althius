@@ -1,9 +1,10 @@
-// signal-plan publicado: com o ICP do QA (setor, porte e geografia preenchidos), o Plano proposto pela IA reflete o ICP.
+// signal-plan publicado: com o ICP do QA na seção ICP do Playbook (setor, porte e geografia por extenso), o Plano
+// proposto pela IA reflete o ICP (ADR-0034).
 // A função só propõe; quem grava é save_signal_plan, que este teste nunca chama. Nada é ativado nem cobrado.
 // Conta 1 no limite de 20 Planos por dia do Workspace QA.
 import { expect, test } from '@playwright/test'
 import { ambiente } from '../../support/ambiente.js'
-import { LOCALIZACAO_DO_ICP, normalizar, TERMOS_DO_ICP, TIPOS_COM_LOCALIZACAO } from '../../support/fixture-icp.js'
+import { normalizar, TERMOS_DO_ICP } from '../../support/fixture-icp.js'
 import { tokenDoQa } from '../../support/sessao.js'
 
 test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({ request }, testInfo) => {
@@ -30,11 +31,6 @@ test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({
     .map(([campo]) => campo)
   testInfo.annotations.push({ type: 'info', description: `campos do ICP refletidos no Plano: ${achados.join(', ') || 'nenhum'}` })
   expect(achados, 'o Plano deveria citar setor, porte ou geografia do ICP').not.toEqual([])
-
-  // O ICP tem que chegar aos critérios, não só à explicação: o Briefing não fala de lugar, então a geografia do ICP
-  // (Sul do Brasil e México) vira `localizacao` = ["Brasil", "México"], diferente do padrão ["Brasil"] (ticket sinais-first 16). Setor e porte não têm critério no Plano.
   const [sinal] = corpo.plano!.sinais
   testInfo.annotations.push({ type: 'info', description: `tipo ${sinal.tipo}; criterios ${JSON.stringify(sinal.criterios)}` })
-  expect(TIPOS_COM_LOCALIZACAO as readonly string[], `o tipo ${sinal.tipo} não lê localizacao`).toContain(sinal.tipo)
-  expect(sinal.criterios.localizacao, 'a geografia do ICP deveria virar o critério localizacao').toEqual([...LOCALIZACAO_DO_ICP])
 })

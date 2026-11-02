@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
-import { createHandler, type Db, ErroDoBanco, type IcpEstruturadoLido, type IcpLido } from './handler.ts'
+import { createHandler, type Db, ErroDoBanco, type IcpLido } from './handler.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
 import { normalizarCriterios } from './criterios.ts'
 
@@ -45,18 +45,6 @@ const db: Db = {
     const secao = data as { version?: number | null; content?: { texto?: unknown; linhas?: unknown } | null } | null
     if (!secao?.content) return null
     return { version: secao.version ?? null, conteudo: secao.content }
-  },
-  async lerIcpEstruturado({ workspaceId, authorization, apikey }): Promise<IcpEstruturadoLido | null> {
-    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('get_my_workspace_icp', { p_workspace_id: workspaceId })
-    if (error) throw falha(error)
-    const v = data as Record<string, unknown> | null
-    if (!v) return null
-    return {
-      version: typeof v.version === 'number' ? v.version : null,
-      sector: typeof v.sector === 'string' ? v.sector : '',
-      companySize: typeof v.companySize === 'string' ? v.companySize : '',
-      geography: typeof v.geography === 'string' ? v.geography : '',
-    }
   },
   async actoresDeBusca() {
     const { data, error } = await admin.rpc('discovery_actors_for', { p_purpose: 'buscar_contas' })

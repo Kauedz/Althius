@@ -114,6 +114,21 @@ Deno.test('com motor: a IA escreve e a nota devolvida é a do banco', async () =
   assertEquals(Object.keys(guardadas[0]).sort(), ['id', 'origem', 'texto'])
 })
 
+Deno.test('sem ICP na leitura (icp nulo): a IA ainda explica e o prompt leva o ICP vazio', async () => {
+  let usuarioDoMotor = ''
+  const llm = modelo({ explicacao: 'Aderência média: atua com corretagem de seguros, mas o porte fica abaixo do pedido.' }, (usuario) => {
+    usuarioDoMotor = usuario
+  })
+  const { handler } = montar({ leitura: { ...DESCOBERTA, icp: null }, llm })
+  const resposta = await pedir(handler)
+  assertEquals(resposta.status, 200)
+  const corpo = await resposta.json()
+  assertEquals(corpo.origem, 'ia')
+  assertEquals(corpo.nivel, 'medio')
+  assertStringIncludes(usuarioDoMotor, '<icp>')
+  assert(!usuarioDoMotor.includes('Software para corretoras'))
+})
+
 Deno.test('explicação guardada e válida: não chama o motor', async () => {
   const llm = modelo({ explicacao: 'não deveria ser usada nesta chamada de teste.' })
   const { handler, guardadas } = montar({

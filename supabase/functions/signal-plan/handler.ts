@@ -11,7 +11,6 @@ import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
 import { LIMITES_DO_PLANO, type PlanoDoSinal, TIPOS_NO_MERCADO, tiposAceitosNoPlano } from '../_shared/plano-do-sinal/index.ts'
 import { planoPorIa, type ContextoIcp } from './planejador-por-ia.ts'
 import { AVISO_DO_PLANO_INICIAL, planoPorRegra } from './planejador-por-regra.ts'
-import { completarComIcp } from './icp-nos-criterios.ts'
 
 export type FalhaDoPedido = 'limite' | 'sem_participacao' | 'indisponivel'
 
@@ -162,8 +161,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         }
         plano = await comPrazo(planoPorIa(deps.llm, workspaceId, dados, icp), espera)
         if (!plano) motivoDaRegra = 'saida_invalida'
-        // A geografia do ICP vira critério quando o Briefing não fala de lugar (ticket sinais-first 16).
-        else plano = completarComIcp(plano, briefing, icp, tiposAceitos)
       } catch (erro) {
         // O erro real fica só no log técnico, sem texto do modelo nem do fornecedor.
         motivoDaRegra = 'motor_falhou'
@@ -190,7 +187,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   })
 }
 
-/** No mercado a busca precisa de um país; sem lugar no Briefing nem no ICP, começa no Brasil (a pessoa troca no editor). */
+/** No mercado a busca precisa de um país; sem lugar no Plano, começa no Brasil (a pessoa troca no editor). */
 export function comPaisNoMercado(plano: PlanoDoSinal): PlanoDoSinal {
   const [sinal, ...resto] = plano.sinais
   if (!sinal || Array.isArray(sinal.criterios.localizacao) && sinal.criterios.localizacao.length) return plano
