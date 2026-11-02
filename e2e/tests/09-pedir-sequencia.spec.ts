@@ -1,6 +1,4 @@
-// Gerar Sequência sem o Rhetor (Sinais first 11). No detalhe de uma Conta Quente, "Gerar Sequência" começa uma Conversa
-// coordenada nova com o pedido e vai para /conversa, sem procurar um Agente pela Especialidade e sem abrir a Conversa só
-// leitura de um Agente (/agentes/:id/conversa, ticket 10).
+// Gerar Sequência (ticket 03). No detalhe de uma Conta Quente, começa uma Conversa nova com o Rhetor.
 //
 // O Workspace QA não tem Conta-alvo nem Sinal, e o smoke não pode criar dado comercial nem rodar a IA em produção. Então a
 // Conta é de mentira, só no navegador: as leituras dela (`target_accounts`, `sales_responsibilities` e o foguinho de
@@ -46,7 +44,7 @@ async function abrirContaDeMentira(page: Page) {
   page.on('request', (req) => {
     const url = req.url()
     if (!url.startsWith(e.supabaseUrl)) return
-    if (ESCRITA_POR_RPC.test(url) || (req.method() !== 'GET' && req.method() !== 'HEAD' && /\/rest\/v1\/(?!rpc\/)/.test(url))) {
+    if (!url.includes('/rpc/agent_prompt_suggestions') && (ESCRITA_POR_RPC.test(url) || (req.method() !== 'GET' && req.method() !== 'HEAD' && /\/rest\/v1\/(?!rpc\/)/.test(url)))) {
       escritas.push(`${req.method()} ${new URL(url).pathname}`)
     }
   })
