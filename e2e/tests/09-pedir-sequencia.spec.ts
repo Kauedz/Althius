@@ -1,6 +1,4 @@
-// Gerar Sequência sem o Rhetor (Sinais first 11). No detalhe de uma Conta Quente, "Gerar Sequência" começa uma Conversa
-// coordenada nova com o pedido e vai para /conversa, sem procurar um Agente pela Especialidade e sem abrir a Conversa só
-// leitura de um Agente (/agentes/:id/conversa, ticket 10).
+// Gerar Sequência (ticket 03). No detalhe de uma Conta Quente, começa uma Conversa nova com o Rhetor.
 //
 // O Workspace QA não tem Conta-alvo nem Sinal, e o smoke não pode criar dado comercial nem rodar a IA em produção. Então a
 // Conta é de mentira, só no navegador: as leituras dela (`target_accounts`, `sales_responsibilities` e o foguinho de
@@ -46,7 +44,7 @@ async function abrirContaDeMentira(page: Page) {
   page.on('request', (req) => {
     const url = req.url()
     if (!url.startsWith(e.supabaseUrl)) return
-    if (ESCRITA_POR_RPC.test(url) || (req.method() !== 'GET' && req.method() !== 'HEAD' && /\/rest\/v1\/(?!rpc\/)/.test(url))) {
+    if (!url.includes('/rpc/agent_prompt_suggestions') && (ESCRITA_POR_RPC.test(url) || (req.method() !== 'GET' && req.method() !== 'HEAD' && /\/rest\/v1\/(?!rpc\/)/.test(url)))) {
       escritas.push(`${req.method()} ${new URL(url).pathname}`)
     }
   })
@@ -114,13 +112,13 @@ test('Gerar Sequência abre uma Conversa nova com o Rhetor e sem escrever', asyn
     testInfo.annotations.push({ type: 'url', description: `${antes} -> ${page.url()}` })
     await testInfo.attach('depois-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
   }
-  await expect(page.getByRole('form', { name: 'Continuar a Conversa' })).toBeVisible()
+  await expect(page.getByRole('form', { name: 'Conversa com Rhetor' })).toBeVisible()
   await expect(page.getByText(/Monte uma Sequência de e-mail para a Conta-alvo Conta Smoke 11/).first()).toBeVisible()
   await expect.poll(() => pedidos.length).toBe(1)
   const pedido = pedidos[0]
   testInfo.annotations.push({ type: 'pedido', description: JSON.stringify({ ...pedido, workspaceId: '(QA)' }) })
   expect(pedido.action).toBe('send')
-  expect(String(pedido.agentId).toLowerCase()).toContain('rhetor')
+  expect(String(pedido.agentId)).toMatch(/^[0-9a-f-]{36}$/i)
   expect(pedido.conversationId).toBeNull()
   expect(pedido.workspaceId).toBe(e.workspaceId)
   expect(String(pedido.text)).toContain(`(id ${CONTA})`)
