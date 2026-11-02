@@ -53,4 +53,6 @@ com Aprovação quando a Permissão é Propor; depois disso, o CRM manda e a Alt
 ## Further Notes
 
 - Tickets em `issues/`. 01 começa já; 02 e 03 dependem de 01; 04 depende de 03 e do Playbook 01; 05 depende de 01, do
-  Acesso ao HubSpot e do CRM-15; 06 depende de 05.
+  Acesso ao HubSpot e do CRM-15; 06 depende de 05; 07 (ligar Fit, Não fit e Reunião, que o 02 deixou sem chamada)
+  depende de 01 e 02 e entrega a Reunião; 08 (Aderência da Conta-alvo gravada, decidido em 02/11/2026) entrega Fit e
+  Não fit.
