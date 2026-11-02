@@ -19,6 +19,11 @@ const ESCRITA_POR_RPC = /\/rest\/v1\/rpc\/(create_|save_|update_|delete_|archive
 // O trace fica também quando passa: é a evidência pedida pelo ticket cadencia-pela-ia 04.
 test.use({ trace: 'on' })
 
+// A navegação pode deixar list_account_signals em andamento. Aguarda as rotas antes de fechar a página.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'wait' })
+})
+
 function usuarioDoQa(): string {
   const carga = tokenDoQa().split('.')[1]
   return (JSON.parse(Buffer.from(carga, 'base64url').toString('utf8')) as { sub: string }).sub
