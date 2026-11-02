@@ -2,7 +2,7 @@ import { Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useConversas } from '@/conversa/contexto'
-import { useAmbiente } from '@/fonte/contexto'
+import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
 
 /** O pedido coordenado, com o nome e o id da Conta-alvo para a etapa interna de Sequência. */
@@ -24,13 +24,18 @@ function pedidoDeSequencia(conta: Pick<ContaAlvo, 'id' | 'nome' | 'quente'>): st
  */
 export function GerarSequencia({ conta }: { conta: ContaAlvo }) {
   const { modo } = useAmbiente()
+  const agentes = useDados((f) => f.agentes(), [])
   const conversas = useConversas()
   const navegar = useNavigate()
   if (modo !== 'real') return null
 
   function pedir() {
-    conversas.coordenar({ texto: pedidoDeSequencia(conta) })
-    navegar('/conversa')
+    const rhetor = agentes?.find((agente) => agente.especialidade.id === 'rhetor')
+    if (!rhetor) return
+    const pedido = { texto: pedidoDeSequencia(conta) }
+    conversas.novaDoAgente(rhetor.id)
+    conversas.enviar(rhetor.id, pedido)
+    navegar(`/agentes/${rhetor.id}/conversa`)
   }
 
   return (

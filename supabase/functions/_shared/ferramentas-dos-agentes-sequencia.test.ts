@@ -80,10 +80,10 @@ const TRES_PASSOS = [
 ]
 const PROPOSTA = { conta_id: CONTA, contatos: [MARIA, JOAO], passos: TRES_PASSOS, justificativa: 'A Alfa abriu 12 vagas de vendas.' }
 
-Deno.test('um agente não-Rhetor recebe propor_sequencia quando o contrato do banco existe', () => {
+Deno.test('só o Rhetor recebe propor_sequencia quando o contrato do banco existe', () => {
   const { sessao } = montar()
   assert(nomes(sessao, RHETOR).includes('propor_sequencia'))
-  assert(nomes(sessao, SCOPUS).includes('propor_sequencia'))
+  assert(!nomes(sessao, SCOPUS).includes('propor_sequencia'))
   assert(!nomes(montar({ semContrato: true }).sessao, RHETOR).includes('propor_sequencia'))
 })
 

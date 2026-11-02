@@ -94,7 +94,7 @@ async function abrirContaDeMentira(page: Page) {
   return { e, pedidos, escritas, caminhos }
 }
 
-test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só leitura de um Agente e sem escrever', async ({ page }, testInfo) => {
+test('Gerar Sequência abre uma Conversa nova com o Rhetor e sem escrever', async ({ page }, testInfo) => {
   const conferir = vigiar(page, testInfo)
   const { e, pedidos, escritas, caminhos } = await abrirContaDeMentira(page)
   // A versão no ar: o publish não expõe o commit, mas o nome do bundle muda a cada build (cadencia-pela-ia 04).
@@ -102,7 +102,6 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   testInfo.annotations.push({ type: 'bundle', description: bundles.join(' ') })
   const botao = page.getByRole('button', { name: 'Gerar Sequência', exact: true })
   await expect(botao).toBeVisible()
-  await expect(page.getByRole('button', { name: /Rhetor/ })).toHaveCount(0)
   // Ao lado fica "Criar sequência", que abre o modal na própria Conta e não navega: o clique tem que ser no outro.
   await expect(page.getByRole('button', { name: 'Criar sequência', exact: true })).toBeVisible()
   // A prova do ticket 04 fica no relatório também quando o clique não navega: a URL e os prints vêm antes da asserção.
@@ -110,7 +109,7 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   await testInfo.attach('antes-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
   await botao.click()
   try {
-    await expect(page).toHaveURL(/\/conversa$/)
+    await expect(page).toHaveURL(/\/agentes\/[^/]+\/conversa$/)
   } finally {
     testInfo.annotations.push({ type: 'url', description: `${antes} -> ${page.url()}` })
     await testInfo.attach('depois-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
@@ -121,11 +120,11 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   const pedido = pedidos[0]
   testInfo.annotations.push({ type: 'pedido', description: JSON.stringify({ ...pedido, workspaceId: '(QA)' }) })
   expect(pedido.action).toBe('send')
-  expect(pedido.agentId, 'o pedido vai à Coordenação, não a um Agente').toBeNull()
-  expect(pedido.conversationId, 'a Conversa coordenada é nova').toBeNull()
+  expect(String(pedido.agentId).toLowerCase()).toContain('rhetor')
+  expect(pedido.conversationId).toBeNull()
   expect(pedido.workspaceId).toBe(e.workspaceId)
   expect(String(pedido.text)).toContain(`(id ${CONTA})`)
-  expect(caminhos.filter((c) => c.startsWith('/agentes/')), 'nunca passa pela Conversa só leitura de um Agente').toEqual([])
+  expect(caminhos.some((c) => c.startsWith('/agentes/')), 'a conversa do Rhetor foi aberta').toBe(true)
   expect(escritas, 'nenhuma escrita em produção').toEqual([])
   await conferir()
 })

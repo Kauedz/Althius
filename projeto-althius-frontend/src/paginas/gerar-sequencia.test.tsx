@@ -47,32 +47,30 @@ function abrir(modo: ModoDoAmbiente, conta: Partial<ContaAlvo>, { comSequencia =
 const QUENTE_E_MINHA = { quente: true, sobMinhaResponsabilidade: true, nome: 'OpenAI' }
 
 describe('Gerar Sequência a partir da Conta', () => {
-  it('o Vendedor responsável abre uma Conversa coordenada nova já com o pedido e o nome da Conta, sem ir à Conversa de um Agente', async () => {
+  it('o Vendedor responsável abre uma Conversa nova com o Rhetor já com o pedido', async () => {
     const { usuario, conversar, conversarCoordenado } = abrir('real', QUENTE_E_MINHA)
     await usuario.click(await screen.findByRole('button', { name: 'Gerar Sequência' }))
     expect((await screen.findAllByText(/Monte uma Sequência de e-mail para a Conta-alvo OpenAI/)).length).toBeGreaterThan(0)
-    // A página da Conversa coordenada, com o composer que continua a Conversa (não a Conversa só leitura de um Agente).
-    expect(screen.getByRole('form', { name: 'Continuar a Conversa' })).toBeInTheDocument()
-    expect(conversarCoordenado).toHaveBeenCalledTimes(1)
-    expect(conversarCoordenado.mock.calls[0][0].texto).toMatch(/Conta-alvo OpenAI \(id openai\)/)
-    expect(conversarCoordenado.mock.calls[0][0].texto).toMatch(/Sinal.*Cadência/)
-    expect(conversarCoordenado.mock.calls[0][1]).toEqual([])
-    expect(conversar).not.toHaveBeenCalled()
+    // A página da Conversa do Rhetor recebe o pedido.
+    expect(conversar).toHaveBeenCalledTimes(1)
+    expect(conversar.mock.calls[0][0]).toBe('rhetor')
+    expect(conversar.mock.calls[0][1].texto).toMatch(/Conta-alvo OpenAI \(id openai\)/)
+    expect(conversar.mock.calls[0][1].texto).toMatch(/Sinal.*Cadência/)
+    expect(conversarCoordenado).not.toHaveBeenCalled()
     expect(screen.queryByText(/só leitura/i)).not.toBeInTheDocument()
   })
 
-  it('funciona sem nenhum Agente no Workspace: não procura o Rhetor pela Especialidade', async () => {
+  it('não envia quando o Workspace não tem Rhetor', async () => {
     const { usuario, conversar, conversarCoordenado } = abrir('real', QUENTE_E_MINHA, { semAgentes: true })
     await usuario.click(await screen.findByRole('button', { name: 'Gerar Sequência' }))
-    expect((await screen.findAllByText(/Monte uma Sequência de e-mail para a Conta-alvo OpenAI/)).length).toBeGreaterThan(0)
-    expect(conversarCoordenado).toHaveBeenCalledTimes(1)
+    expect(conversarCoordenado).not.toHaveBeenCalled()
     expect(conversar).not.toHaveBeenCalled()
   })
 
-  it('o rótulo não cita mais o Rhetor', async () => {
-    abrir('real', QUENTE_E_MINHA)
-    await screen.findByRole('button', { name: 'Gerar Sequência' })
-    expect(screen.queryByRole('button', { name: /Rhetor/ })).not.toBeInTheDocument()
+  it('o pedido é enviado ao Rhetor', async () => {
+    const { usuario, conversar } = abrir('real', QUENTE_E_MINHA)
+    await usuario.click(await screen.findByRole('button', { name: 'Gerar Sequência' }))
+    expect(conversar).toHaveBeenCalledWith('rhetor', expect.objectContaining({ texto: expect.any(String) }))
   })
 
   it('não aparece para quem não é o Vendedor responsável', async () => {
@@ -88,9 +86,9 @@ describe('Gerar Sequência a partir da Conta', () => {
   })
 
   it('aparece na Conta não Quente e pede contexto enriquecido', async () => {
-    const { usuario, conversarCoordenado } = abrir('real', { ...QUENTE_E_MINHA, quente: false })
+    const { usuario, conversar } = abrir('real', { ...QUENTE_E_MINHA, quente: false })
     await usuario.click(await screen.findByRole('button', { name: 'Gerar Sequência' }))
-    expect(conversarCoordenado.mock.calls[0][0].texto).toMatch(/Conta enriquecida.*ICP.*Comitê.*Cadência/)
+    expect(conversar.mock.calls[0][1].texto).toMatch(/Conta enriquecida.*ICP.*Comitê.*Cadência/)
   })
 
   it('na Demonstração, nada muda', async () => {

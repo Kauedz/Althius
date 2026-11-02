@@ -1112,7 +1112,7 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
+  especialidades: ['rhetor'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.proporSequencia && !!deps.banco.contatosParaSequencia,
   async executar({ runId, agente, entrada, deps }) {
@@ -1229,7 +1229,7 @@ const SUGERIR_TEMPLATE: FerramentaDoAgente = {
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
+  especialidades: ['rhetor'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplate,
   async executar({ runId, agente, entrada, deps }) {
@@ -1290,7 +1290,7 @@ const SUGERIR_TEMPLATE_PROPRIO: FerramentaDoAgente = {
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
+  especialidades: ['rhetor'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplateProprio,
   async executar({ runId, agente, entrada, deps }) {
