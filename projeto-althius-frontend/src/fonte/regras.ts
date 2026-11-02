@@ -1,6 +1,7 @@
 import type { ModoDoAmbiente } from './ambiente'
 import type {
   AprovacaoDaFila,
+  AprovacaoDeAderencia,
   AprovacaoDeRevisaoDoPlaybook,
   AprovacaoDeSequencia,
   CategoriaDeAprovacao,
@@ -43,11 +44,17 @@ export function rotuloDoEstadoDaAprovacao(aprovacao: {
 }
 
 export const categoriaDa = (aprovacao: AprovacaoDaFila): CategoriaDeAprovacao =>
-  aprovacao.revisao ? 'revisao-da-memoria' : ehSequenciaProposta(aprovacao) ? 'sequencia' : 'acao'
+  aprovacao.revisao
+    ? 'revisao-da-memoria'
+    : ehSequenciaProposta(aprovacao) ? 'sequencia' : ehAderenciaProposta(aprovacao) ? 'aderencia' : 'acao'
 
 /** Se a Aprovação é a Sequência que o Rhetor propôs (cadencia-pela-ia). */
 export const ehSequenciaProposta = (aprovacao: AprovacaoDaFila): aprovacao is AprovacaoDeSequencia =>
   aprovacao.tipo === 'sequencia' && 'sequencia' in aprovacao
+
+/** Se a Aprovação é a Aderência que o Scopus propôs (kanban-de-prospeccao 08). */
+export const ehAderenciaProposta = (aprovacao: AprovacaoDaFila): aprovacao is AprovacaoDeAderencia =>
+  aprovacao.tipo === 'aderencia' && 'aderencia' in aprovacao
 
 /** Se a Aprovação é a revisão de uma seção do Playbook, a do Workspace operacional (CRM-09). */
 export const ehRevisaoDoPlaybook = (aprovacao: AprovacaoDaFila): aprovacao is AprovacaoDeRevisaoDoPlaybook =>
@@ -57,8 +64,8 @@ export const ehRevisaoDoPlaybook = (aprovacao: AprovacaoDaFila): aprovacao is Ap
  * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador. As de
  * ação, na Demonstração, qualquer participante ativo; no Workspace operacional, também só um Administrador, e o banco
  * recusa a decisão de um Membro (decisão do Nan, 2026-10-01). Sem o ambiente, vale a regra do Workspace operacional.
- * A Sequência proposta pelo Rhetor, no Workspace operacional, só o Vendedor responsável pela Conta-alvo decide
- * (ADR-0009), seja qual for o papel; na Demonstração, segue a regra das ações.
+ * A Sequência proposta pelo Rhetor e a Aderência proposta pelo Scopus, no Workspace operacional, só o Vendedor
+ * responsável pela Conta-alvo decide (ADR-0009), seja qual for o papel; na Demonstração, seguem a regra das ações.
  */
 export function podeDecidir(
   categoria: CategoriaDeAprovacao,
@@ -66,7 +73,7 @@ export function podeDecidir(
   modo: ModoDoAmbiente = 'real',
   responsavelPelaConta = false,
 ): boolean {
-  if (categoria === 'sequencia' && modo === 'real') return responsavelPelaConta && !!papel
+  if ((categoria === 'sequencia' || categoria === 'aderencia') && modo === 'real') return responsavelPelaConta && !!papel
   return (categoria !== 'revisao-da-memoria' && modo === 'demonstracao') || papel === 'administrador'
 }
 

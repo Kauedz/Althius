@@ -3,7 +3,8 @@
 // Administrador decide, e a pendente vence em 7 dias. Na mesma fila vem a revisão de uma seção do Playbook que o Scopus
 // ou o Ethos propôs (CRM-09, ADR-0010): ela não tem Integração, e aprovar já grava a versão nova no banco. E vem a
 // Sequência que o Rhetor propôs (cadencia-pela-ia): só o Vendedor responsável a decide e lê o assunto e o corpo, e
-// aprovar já cria a Sequência no banco, sem envio.
+// aprovar já cria a Sequência no banco, sem envio. E vem a Aderência que o Scopus propôs (kanban-de-prospeccao 08): só o
+// Vendedor responsável a decide, e aprovar já grava a Aderência e move o cartão.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehSecaoDoPlaybook } from './playbook-tipos'
@@ -12,6 +13,7 @@ import type {
   Aprovacao,
   AprovacaoDaFila,
   AprovacaoDeAcao,
+  AprovacaoDeAderencia,
   AprovacaoDeRevisaoDoPlaybook,
   AprovacaoDeSequencia,
   ContatoDaSequenciaProposta,
@@ -48,8 +50,11 @@ interface RegistroDaAprovacao {
   failure: string | null
   decided_by?: string | null
   expires_at?: string | null
-  /** `revisao` na revisão do Playbook (CRM-09), `sequencia` na Sequência proposta pelo Rhetor; sem ela, ação. */
-  category?: 'acao' | 'revisao' | 'sequencia' | null
+  /**
+   * `revisao` na revisão do Playbook (CRM-09), `sequencia` na Sequência proposta pelo Rhetor, `aderencia` na Aderência
+   * proposta pelo Scopus; sem ela, ação.
+   */
+  category?: 'acao' | 'revisao' | 'sequencia' | 'aderencia' | null
   playbook_section?: string | null
   base_version?: number | null
   applied_version?: number | null
@@ -93,6 +98,9 @@ function converterErro(error: { message: string }): Error {
   if (error.message.includes('only the responsible seller of the target account decides this sequence')) {
     return new Error('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')
   }
+  if (error.message.includes('only the responsible seller of the target account decides this fit')) {
+    return new Error('Só o Vendedor responsável pela Conta-alvo decide esta Aderência.')
+  }
   if (error.message.includes('only administrators can decide approvals')) {
     return new Error('Só Administradores do Workspace decidem Aprovações.')
   }
@@ -108,12 +116,18 @@ const ONDE: Record<string, 'fila' | 'conversa' | 'canal'> = { fila: 'fila', conv
  * Quem executa a Aprovação depois de aprovada: a chamada de ferramenta de conector, o envio ao CRM (o padrão) ou ninguém,
  * na revisão do Playbook, que o banco já gravou ao aprovar.
  */
-const EXECUTOR: Record<string, string | null> = { ferramenta: 'integration-tools', revisao_do_playbook: null, sequencia: null }
+const EXECUTOR: Record<string, string | null> = {
+  ferramenta: 'integration-tools',
+  revisao_do_playbook: null,
+  sequencia: null,
+  aderencia: null,
+}
 
 /** O tipo da Aprovação para a fila: a revisão do Playbook, a chamada de ferramenta de um conector ou o envio. */
 function tipoDa(linha: RegistroDaAprovacao): TipoDeAprovacao {
   if (linha.category === 'revisao') return 'revisao'
   if (linha.category === 'sequencia') return 'sequencia'
+  if (linha.category === 'aderencia') return 'aderencia'
   return linha.payload?.tipo === 'ferramenta' ? 'integracao' : 'envio'
 }
 
@@ -130,6 +144,7 @@ function aprovacaoDa(linha: RegistroDaAprovacao): AprovacaoDaFila {
     tipo: tipoDa(linha),
   }
   if (linha.category === 'sequencia' && linha.target_account_id) return aprovacaoDeSequencia(linha, base)
+  if (linha.category === 'aderencia' && linha.target_account_id) return aprovacaoDeAderencia(linha, base)
   const secao = linha.playbook_section ?? undefined
   if (linha.category === 'revisao' && ehSecaoDoPlaybook(secao)) {
     return {
@@ -198,6 +213,30 @@ function aprovacaoDeSequencia(
   }
 }
 
+/** A Aderência proposta: a Conta, Fit ou Não fit e o motivo vêm no payload, que todo Participante lê. */
+function aprovacaoDeAderencia(
+  linha: RegistroDaAprovacao,
+  base: Omit<AprovacaoDeAderencia, 'estado' | 'aderencia' | 'tipo'>,
+): AprovacaoDeAderencia {
+  const payload = (linha.payload ?? {}) as Record<string, unknown>
+  const estado = linha.state === 'recusada' ? 'rejeitada' : linha.state
+  return {
+    ...base,
+    tipo: 'aderencia',
+    estado: estado === 'pendente' || estado === 'aprovada' || estado === 'rejeitada' || estado === 'cancelada' || estado === 'expirada'
+      ? estado
+      : 'cancelada',
+    aderencia: {
+      contaId: linha.target_account_id ?? '',
+      contaNome: typeof payload.conta === 'string' ? payload.conta : '',
+      aderencia: payload.aderencia === 'nao_fit' ? 'nao-fit' : 'fit',
+      motivo: typeof payload.motivo === 'string' ? payload.motivo : '',
+      responsavel: linha.responsible_seller === true,
+      motivoDaRecusa: linha.failure ?? null,
+    },
+  }
+}
+
 export function criarFonteDeAprovacoesSupabase(
   cliente: SupabaseClient,
   workspaceId: string,
@@ -243,9 +282,10 @@ export function criarFonteDeAprovacoesSupabase(
 
     filaDeAprovacoes,
 
-    // A mesma leitura, sem a Sequência proposta: quem lê só Aprovações (o Canal, o Playbook) nunca a recebe.
+    // A mesma leitura, sem a Sequência e a Aderência propostas: quem lê só Aprovações (o Canal, o Playbook) nunca as
+    // recebe.
     async aprovacoes() {
-      return (await filaDeAprovacoes()).filter((a): a is Aprovacao => a.tipo !== 'sequencia')
+      return (await filaDeAprovacoes()).filter((a): a is Aprovacao => a.tipo !== 'sequencia' && a.tipo !== 'aderencia')
     },
 
     async decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {

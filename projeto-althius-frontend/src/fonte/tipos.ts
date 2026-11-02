@@ -1,3 +1,4 @@
+import type { Aderencia } from './contas-tipos'
 import type { ResumoDeConversa } from './conversas-tipos'
 import type { ConteudoDoPlaybook, IdDaSecaoDoPlaybook } from './playbook-tipos'
 
@@ -501,11 +502,11 @@ interface AprovacaoBase extends Omit<AcaoProposta, 'integracaoId'> {
   gatilho: Gatilho
   /** Até quando a pendente pode ser decidida, em ISO. Sem prazo, não vence. */
   venceEm?: string
-  /** O tipo, para filtrar a fila: envio, chamada numa Integração, revisão do Playbook ou Sequência proposta. */
+  /** O tipo, para filtrar a fila: envio, chamada numa Integração, revisão do Playbook, Sequência ou Aderência proposta. */
   tipo?: TipoDeAprovacao
 }
 
-export type TipoDeAprovacao = 'envio' | 'integracao' | 'revisao' | 'sequencia'
+export type TipoDeAprovacao = 'envio' | 'integracao' | 'revisao' | 'sequencia' | 'aderencia'
 
 /** Uma ação que um Agente quer fazer numa Integração, pela Permissão Propor (ADR 0002). */
 export interface AprovacaoDeAcao extends AprovacaoBase {
@@ -604,6 +605,36 @@ export interface AprovacaoDeSequencia extends AprovacaoBase {
 }
 
 /**
+ * A Aderência que o Scopus propôs para uma Conta-alvo (kanban-de-prospeccao 08): Fit ou Não fit, com o motivo. Só o
+ * Vendedor responsável pela Conta decide; aprovada, a Aderência é gravada e move o cartão (Fit a Fit, Não fit a
+ * Descartada). Todo Participante lê a proposta inteira.
+ */
+export interface AderenciaProposta {
+  contaId: string
+  contaNome: string
+  aderencia: Aderencia
+  motivo: string
+  /** Se quem lê é o Vendedor responsável pela Conta-alvo. */
+  responsavel: boolean
+  /** Por que o sistema recusou na decisão (a Conta não existe mais), quando recusou. */
+  motivoDaRecusa: string | null
+}
+
+export interface AprovacaoDeAderencia extends AprovacaoBase {
+  tipo: 'aderencia'
+  estado: EstadoAprovacao
+  aderencia: AderenciaProposta
+  // Os campos da ação ficam vazios: a Conta está em `aderencia`.
+  revisao?: undefined
+  integracaoId?: undefined
+  contaId?: undefined
+  contaNome?: undefined
+  sequenciaId?: undefined
+  execucao?: undefined
+  falha?: undefined
+}
+
+/**
  * As duas revisões (a da Memória na Demonstração e a do Playbook no Workspace operacional) são a mesma categoria da ADR
  * 0010: têm `revisao`, não têm Integração e só um Administrador as decide (`podeDecidir`, por `categoriaDa`).
  */
@@ -613,13 +644,13 @@ export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao | AprovacaoDeRevisa
  * A fila inteira: as Aprovações e a Sequência proposta pelo Rhetor, que só o Vendedor responsável decide. Fica fora de
  * `Aprovacao` para quem lê só as Aprovações (o Canal, a Memória, o Playbook) nunca receber uma Sequência.
  */
-export type AprovacaoDaFila = Aprovacao | AprovacaoDeSequencia
+export type AprovacaoDaFila = Aprovacao | AprovacaoDeSequencia | AprovacaoDeAderencia
 
 /**
  * A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace (na Demonstração, os documentos;
  * no Workspace operacional, as seções do Playbook), só Administradores.
  */
-export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria' | 'sequencia'
+export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria' | 'sequencia' | 'aderencia'
 
 export interface NovaAprovacao {
   agenteId: AgenteId

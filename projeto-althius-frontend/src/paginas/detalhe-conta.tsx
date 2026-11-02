@@ -18,6 +18,7 @@ import { BuscarSinaisDeNovo } from './buscar-sinais-de-novo'
 import { SecaoReceitaFederal, SecaoComiteDeCompra } from './comite-e-enriquecimento'
 import { SeloStatus } from './detalhe-sequencia'
 import { EnviarAoCrm } from './enviar-ao-crm'
+import { DefinirAderencia } from './definir-aderencia'
 import { CAMPO, CamposDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
@@ -167,6 +168,7 @@ export function DetalheConta({ contaId }: Props) {
     <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
       <CabecalhoDaConta conta={conta} hoje={hoje} />
       <AcoesDaConta conta={conta} temSequenciaEmAndamento={!!sequencia && !sequenciaEncerrada} />
+      <DefinirAderencia conta={conta} />
       <TransferirResponsabilidade conta={conta} />
       <EnviarAoCrm conta={conta} contatos={contatos?.length ?? 0} />
 

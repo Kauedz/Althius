@@ -87,6 +87,8 @@ export interface ContaAlvo {
   logoDeUmaCor?: boolean
   segmento?: string
   aderencia?: Aderencia
+  /** Por que a Conta encaixa ou não no ICP, como quem avaliou escreveu. */
+  motivoDaAderencia?: string
   origem?: OrigemDaConta
   /** Total de contatos da conta (calculado pela fonte). */
   totalContatos: number
@@ -363,6 +365,12 @@ export interface FonteDeContas extends FonteObservavel {
    * produto. Sem este método, a fonte não oferece o kanban.
    */
   moverEstagio?(contaId: string, estagio: EstagioDeProspeccao): Promise<void>
+
+  /**
+   * Grava a Aderência da Conta (Fit ou Não fit, com o motivo; Não fit exige motivo). Só o Vendedor responsável grava;
+   * Fit leva o cartão a Fit e Não fit a Descartada. Sem este método, a fonte não oferece a escolha.
+   */
+  definirAderencia?(contaId: string, aderencia: Aderencia, motivo: string): Promise<void>
 
   /**
    * O custo de "Buscar Sinais de novo" numa Conta, antes de a pessoa pedir. Sem este método (e o seguinte), a fonte não

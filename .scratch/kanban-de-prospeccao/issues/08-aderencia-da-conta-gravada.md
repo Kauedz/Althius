@@ -60,3 +60,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - 2026-11-02: aberto pela decisão do dono do produto no ticket 07 (Aderência vira dado gravado).
+- 2026-11-02: decisões confirmadas pelo dono do produto: avaliam a pessoa responsável e o Scopus; motivo obrigatório para Não fit. Como não existe Permissão do Agente fora das Integrações (`private.agent_permissions` exige `integration_id`), o Scopus **sempre propõe**: nasce uma Aprovação da categoria `aderencia`, que só o Vendedor responsável decide (o mesmo molde de `propor_sequencia`), e aprovar grava. Isso redefine `decide_approval`, `cancel_approval` e `list_approvals` a partir da última definição da `main`, e a fila de Aprovações passa a mostrar a categoria.
