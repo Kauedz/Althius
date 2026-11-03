@@ -6,6 +6,7 @@
 import {
   type BlockedOutcome,
   BLOCKED_MESSAGES,
+  textoTemVariavelAberta,
   UnipileRequestError,
   UnipileUnreadableResponse,
 } from './send-step.ts'
@@ -412,6 +413,19 @@ export async function sendChatStep(
     return (error as { code?: string })?.code === 'P0002' ? { kind: 'not_found' } : { kind: 'release_error' }
   }
   if (released.outcome !== 'released') return { kind: 'blocked', outcome: released.outcome }
+
+  if (textoTemVariavelAberta(released.body)) {
+    try {
+      await deps.db.recordChatStepSendResult({
+        sendId,
+        outcome: 'failed',
+        error: 'missing_variable',
+      })
+    } catch {
+      return { kind: 'attempted', outcome: 'failed', recorded: false, reason: 'missing_variable' }
+    }
+    return { kind: 'blocked', outcome: 'missing_variable' }
+  }
 
   // Daqui em diante o Envio está em "sending": todo caminho grava um resultado. Um anexo que não serve ao canal não
   // sai e o Envio falha com o motivo; um que não deu para baixar agora falha como recusa passageira (nova tentativa).

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { valorDaVariavel } from '@/fonte/variaveis-do-passo'
 import {
+  previaDoPasso,
+  valorComEvidencia,
+  type ContextoComEvidencia,
+} from '@/fonte/variaveis-com-evidencia'
+import type { SinalEncontrado } from '@/fonte/sinais-tipos'
+import {
+  AlertTriangle,
   ArrowLeft,
   Calendar,
   Check,
@@ -47,6 +53,7 @@ import {
   useDados,
   useDadosDeContas,
   useDadosDeSequencias,
+  useDadosDeSinais,
   useFonteDeContas,
   useFonteDeSequencias,
 } from '@/fonte/contexto'
@@ -193,6 +200,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
   const { dados: contas, carregando: carregandoContas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
+  const { dados: sinaisEncontrados = [] } = useDadosDeSinais(
+    (f) => f.sinaisEncontrados().catch(() => []),
+    [],
+  )
 
   // Os Envios e as respostas reais só existem num Workspace operacional, e só o Responsável pela Sequência os vê.
   const { dados: envios, erro: erroDosEnvios, recarregar: recarregarEnvios } = useDadosDeSequencias(
@@ -1469,6 +1480,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onModoPrevia={setModoPrevia}
             conta={conta}
             contatos={contatos ?? []}
+            workspaceId={workspace?.cliente}
+            sinais={sinaisEncontrados}
+            enviosLista={envios ?? []}
+            respostasLista={respostas ?? []}
             dataPrevista={dataFormatadaStepAtivo}
             onSalvar={handleSalvarStep}
             onMover={handleMoverStep}
@@ -1523,6 +1538,12 @@ const VARIAVEIS: Array<{ nome: string; grupo: string; token: string }> = [
   { nome: 'contato.primeiro_nome', grupo: 'Contato', token: '{{contato.primeiro_nome}}' },
   { nome: 'contato.cargo', grupo: 'Contato', token: '{{contato.cargo}}' },
   { nome: 'remetente.nome', grupo: 'Você', token: '{{remetente.nome}}' },
+  { nome: 'sinal.frase', grupo: 'Sinal', token: '{{sinal.frase}}' },
+  { nome: 'sinal.fonte', grupo: 'Sinal', token: '{{sinal.fonte}}' },
+  { nome: 'sinal.evidencia', grupo: 'Sinal', token: '{{sinal.evidencia}}' },
+  { nome: 'referencia.envio', grupo: 'Referência', token: '{{referencia.envio}}' },
+  { nome: 'referencia.resposta', grupo: 'Referência', token: '{{referencia.resposta}}' },
+  { nome: 'referencia.indicacao', grupo: 'Referência', token: '{{referencia.indicacao}}' },
 ]
 
 // ---------- Substituição de variáveis para preview ----------
@@ -1542,28 +1563,74 @@ const REMETENTE_DA_DEMONSTRACAO: Remetente = {
   cargo: 'Head de Receita na Databricks',
 }
 
-function resolverVariavel(
-  nome: string,
-  conta: ContaAlvo | undefined,
-  contato: Contato | undefined,
-  remetente: Remetente | undefined,
-): string | null {
-  // Os mesmos nomes e valores do envio: {{primeiro_nome}}, {{empresa}}, {{cargo}}… e os nomes com grupo.
-  return valorDaVariavel(nome, {
+function montarContextoComEvidencia({
+  workspaceId,
+  conta,
+  contato,
+  remetente,
+  referenciaContato,
+  referenciaContatoId,
+  sinais = [],
+  envios = [],
+  respostas = [],
+}: {
+  workspaceId?: string
+  conta?: ContaAlvo
+  contato?: Contato
+  remetente?: Remetente
+  referenciaContato?: Contato
+  referenciaContatoId?: string
+  sinais?: SinalEncontrado[]
+  envios?: EnvioDoPasso[]
+  respostas?: RespostaRecebida[]
+}): ContextoComEvidencia {
+  const wId = workspaceId ?? 'workspace-demonstracao'
+  const cId = conta?.id ?? 'conta-demonstracao'
+  return {
+    workspaceId: wId,
+    contaId: cId,
     conta: { nome: conta?.nome, segmento: conta?.segmento, dominio: conta?.dominio },
     contato: { nome: contato?.nome, cargo: contato?.cargo, email: contato?.email },
     remetente: { nome: remetente?.nome },
-  })
+    referenciaContatoId,
+    referencia: referenciaContato
+      ? {
+          id: referenciaContato.id,
+          nome: referenciaContato.nome,
+          workspaceId: wId,
+          contaId: cId,
+        }
+      : null,
+    sinais: sinais
+      .filter((s) => !conta?.id || s.contaId === conta.id)
+      .map((s) => ({
+        workspaceId: wId,
+        contaId: cId,
+        frase: s.frase,
+        fonte: s.fonte,
+        evidencia: s.evidencia,
+        valido: true,
+      })),
+    envios: envios.map((e) => ({
+      contatoId: e.contatoId,
+      workspaceId: wId,
+      contaId: cId,
+      status: e.status,
+    })),
+    respostas: respostas.map((r) => ({
+      contatoId: r.contatoId ?? '',
+      workspaceId: wId,
+      contaId: cId,
+    })),
+  }
 }
 
 function renderizarPreview(
   texto: string,
-  conta: ContaAlvo | undefined,
-  contato: Contato | undefined,
-  remetente: Remetente | undefined,
+  ctx: ContextoComEvidencia,
 ): string {
   return texto.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, nome: string) => {
-    const valor = resolverVariavel(nome, conta, contato, remetente)
+    const valor = valorComEvidencia(nome, ctx)
     if (valor) return `<mark class="al-preview-var">${valor}</mark>`
     return `<mark class="al-preview-var-missing">{{${nome}}}</mark>`
   })
@@ -1584,6 +1651,10 @@ interface ComposerStepProps {
   onModoPrevia: (v: boolean) => void
   conta: ContaAlvo | undefined
   contatos: Contato[]
+  workspaceId?: string
+  sinais?: SinalEncontrado[]
+  enviosLista?: EnvioDoPasso[]
+  respostasLista?: RespostaRecebida[]
   remetente: Remetente | undefined
   dataPrevista?: string
   onSalvar: (patch: Partial<StepSequencia>) => void
@@ -1673,6 +1744,11 @@ function ComposerStep({
   modoPrevia,
   onModoPrevia,
   conta,
+  contatos,
+  workspaceId,
+  sinais = [],
+  enviosLista = [],
+  respostasLista = [],
   remetente,
   dataPrevista,
   onSalvar,
@@ -1709,6 +1785,21 @@ function ComposerStep({
         : null
   const corpo = step.corpo ?? ''
   const anexos = step.anexos ?? []
+
+  const refContato = step.referenciaContatoId
+    ? (contatosMap.get(step.referenciaContatoId) ?? contatos.find((c) => c.id === step.referenciaContatoId))
+    : undefined
+  const contextoEvidencia = montarContextoComEvidencia({
+    workspaceId,
+    conta,
+    contato,
+    remetente,
+    referenciaContato: refContato,
+    referenciaContatoId: step.referenciaContatoId,
+    sinais,
+    envios: enviosLista.length ? enviosLista : (envio ? [envio] : []),
+    respostas: respostasLista,
+  })
 
   // A nota do convite do LinkedIn é opcional: em branco, o convite sai sem nota.
   const ehConvite = step.canal === 'linkedin' && step.subtipoLinkedIn === 'convite'
@@ -1871,6 +1962,34 @@ function ComposerStep({
         </div>
       </div>
 
+      {/* Linha Referência: Contato citado neste passo (Ticket 06) */}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+        <span className="text-xs text-al-muted">Referência:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Contato de referência"
+            value={step.referenciaContatoId ?? ''}
+            onChange={(e) => onSalvar({ referenciaContatoId: e.target.value || undefined })}
+            className="rounded-lg border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
+          >
+            <option value="">Nenhum (sem citação)</option>
+            {(contatos.length > 0
+              ? contatos
+              : participantesIds.map((id) => contatosMap.get(id)).filter((c): c is Contato => Boolean(c))
+            )
+              .filter((c) => c.id !== step.contatoId)
+              .map((c) => (
+                <option key={c.id} value={c.id} className="bg-al-surface text-al-ink">
+                  {c.nome} {c.cargo ? `· ${c.cargo}` : ''}
+                </option>
+              ))}
+          </select>
+          <span className="text-xs text-al-muted">
+            Outro Contato da Conta para {`{{referencia.*}}`}
+          </span>
+        </div>
+      </div>
+
       {/* Opções específicas por canal (Envio/Modo/Subtipo) */}
       <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
         <span className="text-xs text-al-muted">Envio:</span>
@@ -1906,7 +2025,13 @@ function ComposerStep({
           {modoPrevia ? 'Como chega:' : rotuloMensagem}
         </span>
         {modoPrevia ? (
-          <PreviaCanal step={step} conta={conta} contato={contato} remetente={remetente} />
+          <PreviaCanal
+            step={step}
+            conta={conta}
+            contato={contato}
+            remetente={remetente}
+            contextoEvidencia={contextoEvidencia}
+          />
         ) : (
           <div className="relative">
             <textarea
@@ -2263,7 +2388,9 @@ function descreverEnvio(envio: EnvioDoPasso, canal: CanalStep): string {
     case 'sent':
       return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
     case 'awaiting_reconfirmation':
-      if (envio.ultimoErro?.startsWith('missing_variable:')) return `Não saiu: ${motivoDoEnvio(envio.ultimoErro)}.`
+      if (envio.ultimoErro?.startsWith('missing_variable:') || envio.ultimoErro === 'message_changed') {
+        return `Não saiu: ${motivoDoEnvio(envio.ultimoErro)}.`
+      }
       return envio.ultimoErro === 'contact_unlinked'
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
         : `O Contato não tem mais o ${nomeDoDestino(canal)} confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
@@ -2910,11 +3037,13 @@ function PreviaCanal({
   conta,
   contato,
   remetente,
+  contextoEvidencia,
 }: {
   step: StepSequencia
   conta: ContaAlvo | undefined
   contato: Contato | undefined
   remetente: Remetente | undefined
+  contextoEvidencia: ContextoComEvidencia
 }) {
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const corpo = step.corpo ?? ''
@@ -2931,12 +3060,28 @@ function PreviaCanal({
     ? `${nomeContato.toLowerCase().replace(/\s+/g, '.')}@${conta?.nome?.toLowerCase().replace(/\s+/g, '') ?? 'empresa'}.com`
     : (contato?.email ?? '')
 
-  const corpoHtml = renderizarPreview(corpo, conta, contato, remetente)
-  const assuntoHtml = renderizarPreview(assunto, conta, contato, remetente)
+  const previa = previaDoPasso(assunto, corpo, contextoEvidencia)
+  const corpoHtml = renderizarPreview(corpo, contextoEvidencia)
+  const assuntoHtml = renderizarPreview(assunto, contextoEvidencia)
+
+  const avisoBloqueio = previa.bloqueado && previa.motivo ? (
+    <div
+      role="alert"
+      aria-label="Aviso de prévia e motivo de bloqueio"
+      className="mb-3 rounded-lg border border-al-atencao/40 bg-al-atencao/10 px-3 py-2 text-xs text-al-atencao"
+    >
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="size-4 shrink-0" />
+        <span>Passo com envio bloqueado</span>
+      </div>
+      <p className="mt-0.5 text-[0.6875rem] text-al-ink/80">{previa.motivo}</p>
+    </div>
+  ) : null
 
   if (step.canal === 'whatsapp') {
     return (
       <div className="al-pv al-pv-wa" data-testid="preview-whatsapp">
+        {avisoBloqueio}
         <div className="al-pv-wa-head">
           <span className="al-pv-avatar">{inicContato}</span>
           <span className="al-pv-who">
@@ -2963,6 +3108,7 @@ function PreviaCanal({
     return (
       <div className="al-pv al-pv-sms" data-testid="preview-sms">
         <div className="al-pv-phone">
+          {avisoBloqueio}
           <div className="al-pv-sms-head">
             <span className="al-pv-sms-avatar">{inicContato}</span>
             <small>{nomeContato}</small>
@@ -2986,6 +3132,7 @@ function PreviaCanal({
     if (step.subtipoLinkedIn === 'convite') {
       return (
         <div className="al-pv al-pv-li" data-testid="preview-linkedin">
+          {avisoBloqueio}
           <div className="al-pv-li-bar">
             <span className="al-pv-li-mark">in</span>
             <strong>Convites</strong>
@@ -3011,6 +3158,7 @@ function PreviaCanal({
     }
     return (
       <div className="al-pv al-pv-li" data-testid="preview-linkedin">
+        {avisoBloqueio}
         <div className="al-pv-li-bar">
           <span className="al-pv-li-mark">in</span>
           <strong>Mensagens</strong>
@@ -3046,6 +3194,7 @@ function PreviaCanal({
   if (step.canal === 'email') {
     return (
       <div className="al-pv al-pv-mail" data-testid="preview-email">
+        {avisoBloqueio}
         <div className="al-pv-mail-toolbar">
           <span>← Caixa de entrada</span>
         </div>
@@ -3089,19 +3238,22 @@ function PreviaCanal({
   // Ligação / Tarefa — cartão de tarefa
   const tipoTarefa = step.canal === 'ligacao' ? 'Tarefa de ligação' : 'Tarefa'
   return (
-    <div className="al-pv al-pv-task" data-testid="preview-task">
-      <div className="al-pv-task-head">
-        <IconeCanal canal={step.canal} />
-        <span className="al-pv-who">
-          <strong>{tipoTarefa} · {nomeContato}</strong>
-          <small>Vence no dia do step · {hora} · dona: {nomeRemetente}</small>
-        </span>
-        <span className="al-pv-task-check">✓ Concluir</span>
+    <div className="flex flex-col gap-2">
+      {avisoBloqueio}
+      <div className="al-pv al-pv-task" data-testid="preview-task">
+        <div className="al-pv-task-head">
+          <IconeCanal canal={step.canal} />
+          <span className="al-pv-who">
+            <strong>{tipoTarefa} · {nomeContato}</strong>
+            <small>Vence no dia do step · {hora} · dona: {nomeRemetente}</small>
+          </span>
+          <span className="al-pv-task-check">✓ Concluir</span>
+        </div>
+        <div
+          className="al-pv-task-body"
+          dangerouslySetInnerHTML={{ __html: corpoHtml || `<span class="al-pv-empty">${step.canal === 'ligacao' ? 'Roteiro da ligação…' : 'Nota da tarefa…'}</span>` }}
+        />
       </div>
-      <div
-        className="al-pv-task-body"
-        dangerouslySetInnerHTML={{ __html: corpoHtml || `<span class="al-pv-empty">${step.canal === 'ligacao' ? 'Roteiro da ligação…' : 'Nota da tarefa…'}</span>` }}
-      />
     </div>
   )
 }

@@ -1112,5 +1112,23 @@ export function criarFonteDeSequenciasSupabase(
         atualizadaEm: resumo.atualizadaEm,
       }
     },
+    async previaDoPassoRemoto(sequenciaId: string, stepId: string) {
+      const { data, error } = await cliente.rpc('preview_sequence_step', {
+        p_sequence_id: sequenciaId,
+        p_step_id: stepId,
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as { subject: string; body: string; missing: string[] } | null
+      return linha ?? { subject: '', body: '', missing: [] }
+    },
+    async registrarIndicacaoDeContato(contaId: string, contatoId: string, evidencia: string) {
+      const { data, error } = await cliente.rpc('record_contact_indication', {
+        p_account_id: contaId,
+        p_contact_id: contatoId,
+        p_evidence: evidencia,
+      })
+      if (error) throw converterErro(error)
+      return String(data)
+    },
   }
 }

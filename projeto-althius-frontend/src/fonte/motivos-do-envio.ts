@@ -38,6 +38,8 @@ const MOTIVOS: Record<string, string> = {
   attachment_download_failed: 'não foi possível ler o anexo; o passo será tentado de novo',
   // Descadastro (cadencia/descadastro-e-variaveis).
   contact_suppressed: 'o Contato se descadastrou e não recebe mais e-mails deste Workspace',
+  message_changed:
+    'os dados da mensagem mudaram depois da autorização; revise a prévia e reconfirme o passo',
 }
 
 export function motivoDoEnvio(codigo: string): string {
