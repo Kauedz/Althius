@@ -24,7 +24,19 @@ A ordem obrigatória é: **Banco de Dados (Migrations) → Edge Functions → Wo
    pg_dump -Fc -h <host> -U postgres -d postgres > backup_pre_sequencias_$(date +%Y%m%d_%H%M%S).dump
    ```
 2. **Execução das Migrations Aditivas:**
-   Executar em bloco transacional (`BEGIN; ... COMMIT;`), verificando o registro na tabela `supabase_migrations.schema_migrations`:
+   Executar em bloco atômico via `execute_sql` conforme `docs/agents/migrations.md` (§ Applying on the remote), registrando e conferindo o MD5 na tabela `supabase_migrations.schema_migrations`:
+   ```sql
+   do $apply$
+   declare
+     m text := $m$<conteúdo exato do arquivo>$m$;
+   begin
+     execute m;
+     insert into supabase_migrations.schema_migrations (version, name, statements)
+     values ('<version>', '<slug>', array[m]);
+   end
+   $apply$;
+   ```
+   Conferir `select md5(statements[1]) from supabase_migrations.schema_migrations where version = '<version>';` contra o md5 do arquivo.
    - `20261106120000_dependencias_dos_passos_da_sequencia.sql` (Ticket 01: liberação e predecessor)
    - `20261107120000_templates_althius_de_sequencia.sql` (Ticket 07: templates Althius do catálogo)
    - `20261108120000_templates_proprios_de_sequencia.sql` (Ticket 08: persistência privada de templates)
@@ -33,7 +45,7 @@ A ordem obrigatória é: **Banco de Dados (Migrations) → Edge Functions → Wo
    - `20261204120000_retomada_seletiva_da_sequencia.sql` (Ticket 04: retomada por contato)
    - `20261205120000_analise_de_resposta_pela_ia.sql` (Ticket 05: análise de respostas pela IA)
    - `20261210131000_resultados_por_conta.sql` (Ticket 09: agregação de desfechos por Conta)
-   - `20261218120000_variaveis_com_evidencia.sql` (Ticket 06: snapshots autorizados e evidências)
+   - `20261218120000_variaveis_com_evidencia.sql` (Ticket 06: snapshots autorizados e evidências) — já aplicada e verificada no Supabase remoto (`ycbdilsmydvzezhlymty`) com MD5 `893dc04b2ffd8f57c6c0815a721334db`.
 
 3. **Verificação pós-migração:**
    - Conferir se RLS e permissões de `service_role` / `authenticated` estão ativas em `private.authorized_message_snapshots`, `private.contact_indications`, `private.sequence_reply_holds`.

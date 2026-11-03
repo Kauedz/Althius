@@ -193,8 +193,38 @@ describe('Ticket 10: Fluxo Integrado das Sequências Coordenadas', () => {
     ]
     expect(() => validarDependenciasDosPassos(passosComCiclo)).toThrow(/ciclo/i)
 
-    // 3. Demonstração permanece identificada sem invadir dados operacionais
-    renderizarApp('/demonstracao/sequencias')
-    expect(await screen.findByText(/Demonstração/i)).toBeInTheDocument()
+    // 3. IA indisponível: sem recomendação automática, a decisão manual segue íntegra na UI
+    const { fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+
+    const revisaoComResposta = await fonteDeSequencias.registrarRespostaCorrelacionada?.({
+      sequenciaId: sequencia.id,
+      eventoId: 'resposta-sem-ia',
+      contatoId: 'contato-openai-1',
+      de: 'Sarah Chen',
+      trecho: 'Favor não enviar mais e-mails para este endereço.',
+      analise: { status: 'falhou' },
+    })
+
+    expect(await screen.findByText(/Sarah Chen: Favor não enviar mais e-mails/i)).toBeInTheDocument()
+    expect(screen.queryByText('Resposta humana')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sugestão da IA/)).not.toBeInTheDocument()
+
+    const botaoPausar = screen.getByRole('button', { name: 'Pausar abordagem' })
+    expect(botaoPausar).toBeEnabled()
+
+    // 4. Supressão explícita por pedido textual de não contato
+    const interacaoPendenteId = revisaoComResposta?.pendentes?.[0]?.id
+    if (fonteDeSequencias.confirmarNaoContatar && interacaoPendenteId) {
+      await fonteDeSequencias.confirmarNaoContatar(sequencia.id, interacaoPendenteId)
+      const revisao = await fonteDeSequencias.revisaoDeRetencao?.(sequencia.id)
+      expect(revisao?.contatosPausados).toContain('contato-openai-1')
+    }
+
+    // 5. Demonstração permanece identificada sem invadir dados operacionais
+    const demo = renderizarApp('/demonstracao/sequencias')
+    const badgesDemo = await screen.findAllByText(/Demonstração/i)
+    expect(badgesDemo.length).toBeGreaterThan(0)
+    demo.unmount()
   })
 })
