@@ -34,6 +34,7 @@ export type BlockedOutcome =
   | 'missing_variable'
   | 'account_retained'
   | 'contact_paused'
+  | 'message_changed'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -141,6 +142,15 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   missing_variable:
     'O passo usa uma variável que este Contato ou a Conta-alvo não tem preenchida. Preencha o dado ou ajuste o texto e reconfirme o passo.',
   account_retained: 'Uma resposta desta Conta está em revisão. Nada sai até o Vendedor responsável decidir.',
+  message_changed:
+    'Os dados da mensagem mudaram depois da autorização. Revise a prévia e reconfirme o passo. A mensagem autorizada não muda em silêncio.',
+}
+
+const VARIAVEL_ABERTA = /\{\{\s*[\w.]+\s*\}\}/
+
+/** Token ainda no texto: não há valor para enviar, e vazio não substitui a variável. */
+export function textoTemVariavelAberta(texto: string): boolean {
+  return VARIAVEL_ABERTA.test(texto ?? '')
 }
 
 export type StepSendResult =
@@ -271,6 +281,17 @@ export async function sendStep(
     return (error as { code?: string })?.code === 'P0002' ? { kind: 'not_found' } : { kind: 'release_error' }
   }
   if (released.outcome !== 'released') return { kind: 'blocked', outcome: released.outcome }
+
+  // Última trava, compartilhada pelo pedido do titular e pelo Executor: o banco já deveria ter segurado
+  // variável sem evidência. Se um token vazou, nada sai para a Unipile.
+  if (textoTemVariavelAberta(released.subject) || textoTemVariavelAberta(released.body)) {
+    try {
+      await deps.db.recordStepSendResult({ sendId, outcome: 'failed', error: 'missing_variable' })
+    } catch {
+      return { kind: 'attempted', outcome: 'failed', recorded: false, reason: 'missing_variable' }
+    }
+    return { kind: 'blocked', outcome: 'missing_variable' }
+  }
 
   // Daqui em diante o Envio está em "sending": todo caminho grava um resultado. Um anexo que não serve ao canal não
   // sai e o Envio falha com o motivo; um que não deu para baixar agora falha como recusa passageira (nova tentativa).

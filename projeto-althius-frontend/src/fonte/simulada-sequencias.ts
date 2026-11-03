@@ -2,6 +2,7 @@ import { SINAIS_MOCK } from '@/paginas/sinais/dados-mock'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO, criarSequenciasIniciais } from './dados-sequencias-demo'
 import { TEMPLATES_DA_ALTHIUS, sugerirTemplateDaAlthius } from './templates-althius'
 import { previaParametrizada, sugerirTemplateProprio, templateProntoParaSalvar, type TemplateProprio } from './templates-proprios'
+import { previaDoPasso } from './variaveis-com-evidencia'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
@@ -562,6 +563,24 @@ export function criarFonteDeSequenciasSimulada(
         motivoPause: encontrada.motivoPause,
         atualizadaEm: encontrada.atualizadaEm,
       }
+    },
+
+    async previaDoPassoRemoto(sequenciaId: string, stepId: string) {
+      await aguardar()
+      const seq = dados.find((s) => s.id === sequenciaId)
+      const step = seq?.steps.find((s) => s.id === stepId)
+      if (!seq || !step) throw new Error('Passo não encontrado.')
+      const previa = previaDoPasso(step.assunto ?? step.titulo, step.corpo ?? '', {
+        workspaceId: 'workspace-demonstracao',
+        contaId: seq.contaId,
+      })
+      return { subject: previa.assunto, body: previa.corpo, missing: previa.faltando }
+    },
+
+    async registrarIndicacaoDeContato(_contaId: string, _contatoId: string, evidencia: string) {
+      await aguardar()
+      if (!evidencia.trim()) throw new Error('Evidência é obrigatória.')
+      return `ind-${Date.now()}`
     },
   }
 }
