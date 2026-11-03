@@ -572,4 +572,14 @@ export interface FonteDeSequencias extends FonteObservavel {
    * Não substitui a sugestão da Althius e não ativa envio.
    */
   sugerirTemplateProprio(contaId: string): Promise<SugestaoDeTemplate>
+
+  /**
+   * Prévia de um passo no backend (com resolução de sinais e referências com evidência).
+   */
+  previaDoPassoRemoto?(sequenciaId: string, stepId: string): Promise<{ subject: string; body: string; missing: string[] }>
+
+  /**
+   * Registra uma indicação de contato com evidência textual comprovada.
+   */
+  registrarIndicacaoDeContato?(contaId: string, contatoId: string, evidencia: string): Promise<string>
 }
