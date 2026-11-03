@@ -15,10 +15,11 @@ import {
   ROTULO_DO_TIPO,
   type FiltroDaFila,
 } from '@/fonte/fila-de-aprovacoes'
-import { ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
+import { ehAderenciaProposta, ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
 import type { Agente, AprovacaoDaFila, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
+import { PropostaDeAderencia } from '@/paginas/proposta-de-aderencia'
 import { PropostaDeSequencia } from '@/paginas/proposta-de-sequencia'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
@@ -67,6 +68,8 @@ export function PaginaAprovacoes() {
                 <PrazoDaAprovacao aprovacao={aprovacao} />
                 {ehSequenciaProposta(aprovacao) ? (
                   <PropostaDeSequencia aprovacao={aprovacao} onde="fila" />
+                ) : ehAderenciaProposta(aprovacao) ? (
+                  <PropostaDeAderencia aprovacao={aprovacao} onde="fila" />
                 ) : ehRevisaoDoPlaybook(aprovacao) ? (
                   <CartaoDeRevisaoDoPlaybook aprovacao={aprovacao} onde="fila" />
                 ) : aprovacao.revisao ? (
@@ -110,7 +113,7 @@ function PrazoDaAprovacao({ aprovacao }: { aprovacao: AprovacaoDaFila }) {
   )
 }
 
-const TIPOS: (TipoDeAprovacao | 'todos')[] = ['todos', 'envio', 'integracao', 'revisao', 'sequencia']
+const TIPOS: (TipoDeAprovacao | 'todos')[] = ['todos', 'envio', 'integracao', 'revisao', 'sequencia', 'aderencia']
 
 function FiltrosDaFila({
   filtro,

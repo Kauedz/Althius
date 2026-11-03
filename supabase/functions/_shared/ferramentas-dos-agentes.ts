@@ -21,7 +21,10 @@
 //   propor_sequencia        (Rhetor)            propõe uma Sequência de E-mail para uma Conta-alvo (cadencia-pela-ia 01):
 //                                                nasce sempre uma Aprovação, mesmo com Executar, que só o Vendedor
 //                                                responsável decide; aprovada, a Sequência é criada sem envio, e nada sai
-//                                                antes de ele clicar "Ativar envios". Sem Contatos, lista os da Conta.
+//                                                antes de ele clicar "Ativar envios". Sem Contatos, lista os da Conta;
+//   propor_aderencia        (Scopus)            propõe a Aderência de uma Conta-alvo, Fit ou Não fit com o motivo
+//                                                (kanban-de-prospeccao 08): nasce sempre uma Aprovação que só o Vendedor
+//                                                responsável decide; aprovada, a Aderência é gravada e move o cartão.
 //
 // O que pode ser feito é sempre conferido de novo no banco (a Especialidade, a Permissão, a Participação, a Integração
 // ligada) e no Acesso (`chamarFerramenta` com o `agenteId`). Uma falha de ferramenta vira texto para o Agente, nunca
@@ -125,6 +128,15 @@ export interface RevisaoProposta {
   versaoBase: number
 }
 
+/** A Aderência que o Scopus propôs (kanban-de-prospeccao 08), como `agent_propose_account_fit` devolve. */
+export interface AderenciaProposta {
+  approvalId: string
+  /** `pendente` (nasceu agora) ou `existente` (a mesma proposta já tinha sido feita nesta Execução). */
+  outcome: 'pendente' | 'existente' | string
+  /** O nome da Conta-alvo. */
+  conta: string
+}
+
 /** Um passo de E-mail da Sequência proposta, como vai a `agent_propose_sequence`. */
 export interface PassoProposto {
   esperaEmDias: number
@@ -176,6 +188,15 @@ export interface BancoDasFerramentas {
     agenteId: string,
     a: { targetAccountId: string; contatos: string[]; passos: PassoProposto[]; justificativa: string },
   ): Promise<SequenciaProposta>
+  /**
+   * RPC `agent_propose_account_fit` (kanban-de-prospeccao 08): a Aderência proposta vira uma Aprovação da categoria
+   * aderencia, que só o Vendedor responsável decide. Sem ela, `propor_aderencia` não é oferecida.
+   */
+  proporAderencia?(
+    runId: string,
+    agenteId: string,
+    a: { targetAccountId: string; aderencia: 'fit' | 'nao_fit'; motivo: string },
+  ): Promise<AderenciaProposta>
   /**
    * RPC `agent_read_sequence_contacts`: os Contatos da Conta-alvo com o id e se podem entrar na Sequência. Só o Rhetor
    * lê, e só de uma Conta que não está arquivada.
@@ -336,6 +357,7 @@ function motivoDoBanco(erro: unknown): string {
   if (erro instanceof ErroDoBanco) {
     const m = erro.message
     if (m.startsWith('sequence: ')) return motivoDaSequencia(m)
+    if (m.startsWith('fit: ')) return motivoDaAderencia(m)
     if (m.includes('only the responsible seller')) {
       return 'Só o Vendedor responsável pela Conta-alvo a envia ao CRM, e quem fez este pedido não é o responsável. Diga isso ao usuário.'
     }
@@ -386,6 +408,18 @@ function motivoDaSequencia(m: string): string {
   if (m.includes('step wait')) return 'A espera de cada passo é um número inteiro de dias, de 0 a 60.'
   if (m.includes('step text')) return 'Cada passo precisa de assunto (até 200 caracteres) e corpo (até 5000).'
   if (m.includes('cadence specialist')) return 'Só o Rhetor propõe Sequências.'
+  return 'A proposta foi recusada.'
+}
+
+/** As recusas de `agent_propose_account_fit`, em palavras para o Scopus. */
+function motivoDaAderencia(m: string): string {
+  if (m.includes('already has this fit')) return 'Esta Conta-alvo já tem essa Aderência: nada mudaria. Diga isso ao usuário.'
+  if (m.includes('no responsible seller')) {
+    return 'Esta Conta-alvo não tem Vendedor responsável, e só ele decide a Aderência. Diga isso ao usuário.'
+  }
+  if (m.includes('reason is required')) return 'Não fit precisa do motivo: diga em uma frase por que a Conta não encaixa no ICP.'
+  if (m.includes('reason too long')) return 'O motivo passou de 500 caracteres. Resuma em uma frase.'
+  if (m.includes('ICP specialist')) return 'Só o Scopus propõe a Aderência.'
   return 'A proposta foi recusada.'
 }
 
@@ -1212,6 +1246,71 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
   },
 }
 
+const PROPOR_ADERENCIA: FerramentaDoAgente = {
+  nome: 'propor_aderencia',
+  descricao:
+    'Propõe a Aderência de uma Conta-alvo ao ICP: fit ou nao_fit, com o motivo em uma frase (obrigatório para nao_fit). ' +
+    'Use o id que ler_contas_e_sinais devolve. Avalie pelo ICP do Playbook (setor, porte, região, modelo de venda); um ' +
+    'Sinal sozinho torna a Conta Quente, mas não decide o encaixe. Sem informação para decidir, não proponha: diga o que ' +
+    'falta. Nada é gravado agora: nasce uma Aprovação que só o Vendedor responsável pela Conta decide; aprovada, Fit leva ' +
+    'o cartão a Fit (se ele ainda não passou de lá) e Não fit leva a Descartada.',
+  esquema: {
+    type: 'object',
+    properties: {
+      conta_id: { type: 'string', description: 'O id da Conta-alvo (de ler_contas_e_sinais).' },
+      aderencia: { type: 'string', enum: ['fit', 'nao_fit'] },
+      motivo: { type: 'string', description: 'Por que encaixa ou não no ICP, em uma frase. Todos os membros leem.' },
+    },
+    required: ['conta_id', 'aderencia'],
+    additionalProperties: false,
+  },
+  especialidades: ['scopus'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.banco.proporAderencia,
+  async executar({ runId, agente, entrada, deps }) {
+    const proporAderencia = deps.banco.proporAderencia
+    const recusar = (motivo: string) => falhou(`${agente.name} tentou propor a Aderência de uma Conta`, motivo)
+    if (!proporAderencia) return recusar('A proposta de Aderência não está disponível agora.')
+    const contaId = texto(entrada.conta_id, 64)
+    if (!UUID_DA_CONTA.test(contaId)) return recusar('Informe o id da Conta-alvo que ler_contas_e_sinais devolve.')
+    const aderencia = entrada.aderencia
+    if (aderencia !== 'fit' && aderencia !== 'nao_fit') return recusar('A Aderência é fit ou nao_fit.')
+    const motivo = texto(entrada.motivo, 500)
+    if (aderencia === 'nao_fit' && !motivo) {
+      return recusar('Não fit precisa do motivo: diga em uma frase por que a Conta não encaixa no ICP.')
+    }
+
+    let proposta: AderenciaProposta
+    try {
+      proposta = await proporAderencia(runId, agente.id, { targetAccountId: contaId, aderencia, motivo })
+    } catch (erro) {
+      return falhou(`${agente.name} tentou propor a Aderência de uma Conta`, `A proposta falhou. ${motivoDoBanco(erro)}`)
+    }
+    const link: LinkDoPasso = { tipo: 'aprovacao', id: proposta.approvalId }
+    const rotulo = aderencia === 'fit' ? 'Fit' : 'Não fit'
+    if (proposta.outcome === 'existente') {
+      return {
+        erro: false,
+        paraOAgente: `Esta mesma proposta de ${rotulo} para a ${proposta.conta} já existe nesta Conversa. Nada novo foi criado.`,
+        passo: { descricao: `${agente.name} lembrou a Aderência proposta para a ${proposta.conta}`, estado: 'aguardando', link },
+      }
+    }
+    return {
+      erro: false,
+      paraOAgente:
+        `Proposta criada: ${rotulo} para a ${proposta.conta} espera a decisão do Vendedor responsável, aqui na Conversa ` +
+        `ou em Aprovações. Nada foi gravado ainda: aprovada, ${
+          aderencia === 'fit' ? 'a Conta vai para Fit, se ainda não passou de lá' : 'a Conta vai para Descartada'
+        }. Termine dizendo isso.`,
+      passo: {
+        descricao: `${agente.name} propôs ${rotulo} para a ${proposta.conta} — aguardando o Vendedor responsável`,
+        estado: 'aguardando',
+        link,
+      },
+    }
+  },
+}
+
 const SUGERIR_TEMPLATE: FerramentaDoAgente = {
   nome: 'sugerir_template_de_sequencia',
   descricao:
@@ -1497,6 +1596,7 @@ export const FERRAMENTAS: readonly FerramentaDoAgente[] = [
   PROPOR_SEQUENCIA,
   SUGERIR_TEMPLATE,
   SUGERIR_TEMPLATE_PROPRIO,
+  PROPOR_ADERENCIA,
 ]
 
 /** A ferramenta como o modelo a recebe. */
@@ -1711,6 +1811,19 @@ export function bancoDasFerramentas(
           p_contacts: a.contatos,
           p_steps: a.passos,
           p_justification: a.justificativa,
+        }),
+      )
+      return { approvalId: linha.approval_id, outcome: linha.outcome, conta: linha.account_name }
+    },
+    // Migration 20261220010000 (kanban-de-prospeccao 08).
+    async proporAderencia(runId, agenteId, a) {
+      const linha = primeira<{ approval_id: string; outcome: string; account_name: string }>(
+        await chamar('agent_propose_account_fit', {
+          p_run_id: runId,
+          p_agent_id: agenteId,
+          p_target_account_id: a.targetAccountId,
+          p_fit: a.aderencia,
+          p_reason: a.motivo,
         }),
       )
       return { approvalId: linha.approval_id, outcome: linha.outcome, conta: linha.account_name }

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 e 02 (fechados). Decisão de 2026-11-02 no ticket [07](07-ligar-fit-e-reuniao.md).
 
-**Status:** ready-for-agent
+**Status:** closed (migration aplicada e conferida no remoto em 2026-11-03); faltam os Passos do Nan 2 (deploy da `agent-conversation` e reinício do worker) e 3 (conferência visual)
 
 ## Contexto
 
@@ -36,11 +36,11 @@
 
 ## Critérios
 
-- [ ] Só o Vendedor responsável ativo grava pela tela; outro Workspace não alcança a Conta; valor fora de Fit/Não fit é recusado.
-- [ ] O Scopus grava em Executar; em Propor, nada é gravado sem Aprovação.
-- [ ] Gravar Fit leva a Fit (sem voltar cartão adiantado); gravar Não fit leva a Descartada; os dois ficam no histórico do estágio com o evento.
-- [ ] O histórico da Aderência guarda quem, quando e o motivo.
-- [ ] O selo aparece na tabela e no cartão com o dado real; Conta sem avaliação mostra "sem avaliação".
+- [x] Só o Vendedor responsável ativo grava pela tela; outro Workspace não alcança a Conta; valor fora de Fit/Não fit é recusado.
+- [x] O Scopus grava em Executar; em Propor, nada é gravado sem Aprovação (pela decisão de 2026-11-02, o Scopus sempre propõe: nada é gravado sem a Aprovação do Vendedor responsável).
+- [x] Gravar Fit leva a Fit (sem voltar cartão adiantado); gravar Não fit leva a Descartada; os dois ficam no histórico do estágio com o evento.
+- [x] O histórico da Aderência guarda quem, quando e o motivo.
+- [x] O selo aparece na tabela e no cartão com o dado real; Conta sem avaliação mostra "sem avaliação".
 
 ## Decisões a confirmar (com padrão recomendado)
 
@@ -60,3 +60,5 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - 2026-11-02: aberto pela decisão do dono do produto no ticket 07 (Aderência vira dado gravado).
+- 2026-11-02: decisões confirmadas pelo dono do produto: avaliam a pessoa responsável e o Scopus; motivo obrigatório para Não fit. Como não existe Permissão do Agente fora das Integrações (`private.agent_permissions` exige `integration_id`), o Scopus **sempre propõe**: nasce uma Aprovação da categoria `aderencia`, que só o Vendedor responsável decide (o mesmo molde de `propor_sequencia`), e aprovar grava. Isso redefine `decide_approval` e `cancel_approval` a partir da última definição da `main` (`list_approvals` fica como está: a Aderência e o motivo vão no payload), e a fila de Aprovações e o passo da Conversa passam a mostrar a categoria.
+- 2026-11-03: migration `20261220010000_aderencia_da_conta_gravada.sql` aplicada no remoto pelo `execute_sql`: validação com rollback ok, pgTAP no remoto 42/42 (falhas 0), md5 `4ffe61fd3dcf11a848c602265c896b45` confere. Advisors: `account_fit` e `account_fit_history` com RLS sem políticas (INFO, como as outras tabelas de `private`, que só as funções alcançam) e `set_account_fit` e `list_account_fits` como `SECURITY DEFINER` para `authenticated` (WARN, o mesmo molde das outras RPCs, que conferem a filiação por dentro); os de `decide_approval` e `cancel_approval` já existiam.

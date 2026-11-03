@@ -110,6 +110,13 @@ function converterErro(error: { message: string; code?: string }): Error {
     return new Error('Só o envio ao CRM leva a Conta para No CRM.')
   }
   if (error.message.includes('unknown prospecting stage')) return new Error('Estágio de prospecção desconhecido.')
+  // A Aderência gravada (kanban 08): as recusas de set_account_fit.
+  if (error.message.includes('only the responsible seller can set the fit')) {
+    return new Error('Só o Vendedor responsável define a Aderência desta Conta.')
+  }
+  if (error.message.includes('fit: a reason is required for nao_fit')) return new Error('Diga o motivo do Não fit.')
+  if (error.message.includes('fit: reason too long')) return new Error('O motivo passou de 500 caracteres.')
+  if (error.message.includes('fit: unknown fit')) return new Error('Aderência desconhecida.')
   // "Buscar Sinais de novo" (sinais-reais 08): as recusas de request_account_rescan.
   if (error.message.includes('no active monitor to search with')) {
     return new Error('Nenhum Monitoramento ativo para buscar. Ative um em Sinais.')
@@ -325,6 +332,7 @@ export function criarFonteDeContasSupabase(
       ...mapearConta(data as RegistroConta, responsavel, obterUsuarioId(), await contatos(id), obterEhAdministrador()),
       ...(await foguinhoDaConta(id)),
       ...(await responsavelAusente(responsavel)),
+      ...(await aderenciasDoWorkspace()).get(id),
     }
   }
 
@@ -445,6 +453,19 @@ export function criarFonteDeContasSupabase(
     )
   }
 
+  /** A Aderência gravada de cada Conta avaliada do Workspace; Conta fora do mapa está sem avaliação. */
+  async function aderenciasDoWorkspace(): Promise<Map<string, Pick<ContaAlvo, 'aderencia' | 'motivoDaAderencia'>>> {
+    const { data, error } = await cliente.rpc('list_account_fits', { p_workspace_id: workspace() })
+    if (error) throw converterErro(error)
+    const linhas = (data ?? []) as { target_account_id: string; fit: string; reason: string | null }[]
+    return new Map(
+      linhas.filter((l) => l.fit === 'fit' || l.fit === 'nao_fit').map((l) => [l.target_account_id, {
+        aderencia: l.fit === 'fit' ? 'fit' : 'nao-fit',
+        ...(l.reason ? { motivoDaAderencia: l.reason } : {}),
+      }]),
+    )
+  }
+
   async function rpc(nome: string, parametros: Record<string, unknown>) {
     const { data, error } = await cliente.rpc(nome, parametros)
     if (error) throw converterErro(error)
@@ -467,7 +488,9 @@ export function criarFonteDeContasSupabase(
       const { data, error } = await cliente.from('target_accounts').select(COLUNAS_DA_CONTA)
         .eq('workspace_id', workspace()).is('archived_at', null).order('name', { ascending: true })
       if (error) throw converterErro(error)
-      const [donos, estagios, sinais] = await Promise.all([responsaveis(), estagiosDoWorkspace(), lerSinaisDasContas(cliente, workspace())])
+      const [donos, estagios, aderencias, sinais] = await Promise.all([
+        responsaveis(), estagiosDoWorkspace(), aderenciasDoWorkspace(), lerSinaisDasContas(cliente, workspace()),
+      ])
       const porConta = new Map<string, Contato[]>()
       for (const c of await contatos()) porConta.set(c.contaId, [...(porConta.get(c.contaId) ?? []), c])
       return ((data ?? []) as RegistroConta[]).map((linha) => {
@@ -475,7 +498,7 @@ export function criarFonteDeContasSupabase(
         const estagio = estagios.get(linha.id)
         // Sem Sinal nenhum a Conta não é Quente; se a leitura dos Sinais falhou, a Fonte não informa (nem Quente, nem não).
         const foguinho = sinais ? (sinais.get(linha.id) ?? SEM_SINAIS) : {}
-        return { ...conta, ...(estagio ? { estagio } : {}), ...foguinho }
+        return { ...conta, ...(estagio ? { estagio } : {}), ...aderencias.get(linha.id), ...foguinho }
       })
     },
 
@@ -484,6 +507,15 @@ export function criarFonteDeContasSupabase(
         p_workspace_id: workspace(),
         p_target_account_id: contaId,
         p_stage: estagio,
+      })
+    },
+
+    async definirAderencia(contaId, aderencia, motivo) {
+      await rpc('set_account_fit', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+        p_fit: aderencia === 'fit' ? 'fit' : 'nao_fit',
+        p_reason: motivo,
       })
     },
 
