@@ -649,9 +649,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return { scanned: 0, signals: 0 }
     }
     if (await estouraOLimiteDoDia(m.monitorId)) return await pararNoLimiteDoDia(m, rodadaId)
-    // Vagas mantém um tipo de Monitoramento público (`vaga_linkedin`, `vaga_indeed`) e uma cascata privada no mercado
-    // (`vaga_mercado`, `vaga_indeed_mercado`). As demais fontes de descoberta usam o próprio signalType como cascata;
-    // a guarda do banco só permite tipos explicitamente marcados como market_discovery.
+    // LinkedIn e Indeed têm tipos públicos distintos das cascatas privadas do mercado.
+    // Cada fonte mantém sua própria chave para não colidir com outra origem.
     const tipoDaCascata = m.signalType === 'vaga_linkedin'
       ? CASCATA_DO_MERCADO
       : m.signalType === 'vaga_indeed' ? 'vaga_indeed_mercado' : m.signalType

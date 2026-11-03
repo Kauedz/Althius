@@ -54,20 +54,8 @@ export function eLancamento(id: string): boolean {
   return LANCAMENTOS.has(id)
 }
 
-/** Os cards que entraram no catálogo com as cascatas de 13/10/2026. */
-const NOVOS = new Set([
-  'nova-cooperativa',
-  'entrada-de-socio',
-  'mudanca-de-porte-ou-regime',
-  'financiamento-bndes-finep',
-  'nova-mercadoria-importada',
-  'mudanca-regulatoria-e-licenca',
-  'processos-e-recuperacao',
-  'meta-esg-publicada',
-  'grupo-a-e-cnae-eletrointensivo',
-  'calendario-e-plano-safra',
-  'proposta-recusada',
-])
+/** “Novo” só identifica um Sinal funcional recém-lançado; o restante fica em “Em breve”. */
+const NOVOS = new Set(['abertura-de-vagas'])
 
 const FAMILIAS_DE_EQUIPE = ['vagas-e-equipes', 'movimentacao-profissional']
 const FAMILIAS_DE_MIDIA = ['anuncios', 'presenca-publica', 'reputacao-e-concorrencia']
