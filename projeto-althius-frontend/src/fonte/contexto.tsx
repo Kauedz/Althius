@@ -5,6 +5,7 @@ import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
+import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeDescobertas } from './descobertas-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
@@ -147,6 +148,18 @@ export function FonteDoPlaybookProvider({ fonte, children }: { fonte: FonteDoPla
 export function useFonteDoPlaybook(): FonteDoPlaybook {
   const fonte = useContext(ContextoDaFonteDoPlaybook)
   if (!fonte) throw new Error('useFonteDoPlaybook precisa de um FonteDoPlaybookProvider')
+  return fonte
+}
+
+const ContextoDaFonteDoContextoDaEmpresa = createContext<FonteDoContextoDaEmpresa | null>(null)
+
+export function FonteDoContextoDaEmpresaProvider({ fonte, children }: { fonte: FonteDoContextoDaEmpresa; children: ReactNode }) {
+  return <ContextoDaFonteDoContextoDaEmpresa.Provider value={fonte}>{children}</ContextoDaFonteDoContextoDaEmpresa.Provider>
+}
+
+export function useFonteDoContextoDaEmpresa(): FonteDoContextoDaEmpresa {
+  const fonte = useContext(ContextoDaFonteDoContextoDaEmpresa)
+  if (!fonte) throw new Error('useFonteDoContextoDaEmpresa precisa de um FonteDoContextoDaEmpresaProvider')
   return fonte
 }
 
