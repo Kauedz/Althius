@@ -10,6 +10,7 @@ import {
 } from './ambiente'
 import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
+import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
 /** Nada muda numa fonte sem backend: não há o que observar. */
@@ -139,5 +140,16 @@ export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
     salvar: recusar('configuracoes'),
     restaurar: recusar('configuracoes'),
     propor: recusar('configuracoes'),
+  }
+}
+
+export function criarFonteDoContextoDaEmpresaIndisponivel(): FonteDoContextoDaEmpresa {
+  return {
+    observar: semMudancas,
+    contexto: recusar('configuracoes'),
+    salvar: recusar('configuracoes'),
+    gerar: recusar('configuracoes'),
+    aceitarSugestao: recusar('configuracoes'),
+    descartarGeracao: recusar('configuracoes'),
   }
 }

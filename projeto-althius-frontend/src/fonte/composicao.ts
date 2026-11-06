@@ -15,6 +15,7 @@ import { criarFonteDeConversasSupabase } from './supabase-conversas'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
 import { criarFonteDeAutomacaoSupabase } from './supabase-automacao'
 import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
+import { criarFonteDoContextoDaEmpresaSupabase } from './supabase-contexto-da-empresa'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
@@ -119,6 +120,10 @@ export function criarAmbienteDoWorkspace({
       const { participantes: quem } = await participantes.participantesDoWorkspace()
       return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
     }, aprovacoes),
+    fonteDoContextoDaEmpresa: criarFonteDoContextoDaEmpresaSupabase(cliente, () => participacao.workspaceId, async () => {
+      const { participantes: quem } = await participantes.participantesDoWorkspace()
+      return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
+    }),
     fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
     fonteDeDescobertas: criarFonteDeDescobertasSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,

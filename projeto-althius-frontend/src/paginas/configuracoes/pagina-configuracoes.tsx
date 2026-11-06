@@ -7,6 +7,7 @@ import type { ModuloDoWorkspace } from '@/fonte/ambiente'
 import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
 import { SecaoAutomacao } from './secao-automacao'
+import { SecaoContextoDaEmpresa } from './secao-contexto-da-empresa'
 import { SecaoMemoria } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
@@ -38,6 +39,12 @@ const SECOES: Record<
   // As Preferências são da Conta de usuário e já têm backend: a mesma seção serve aos dois ambientes.
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias, NoWorkspaceOperacional: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
+  // O Contexto da empresa tem backend (contexto-da-empresa): a mesma seção serve aos dois ambientes; só a fonte muda.
+  contexto: {
+    rotulo: 'Contexto da empresa',
+    Componente: SecaoContextoDaEmpresa,
+    NoWorkspaceOperacional: SecaoContextoDaEmpresa,
+  },
   memoria: {
     rotulo: 'Memória do Workspace',
     // O Contexto do Workspace: o mesmo componente nos dois ambientes; a Demonstração só troca a fonte.
