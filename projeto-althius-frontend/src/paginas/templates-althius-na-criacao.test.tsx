@@ -29,7 +29,7 @@ describe('Templates da Althius na Nova sequência', () => {
     expect(await within(form!).findByText(/Gabriel Siqueira/i)).toBeInTheDocument()
     expect(await within(form!).findByRole('combobox', { name: 'Template da Althius' })).toBeInTheDocument()
     expect(within(form!).getByRole('button', { name: 'Sugerir com os dados da Conta' })).toBeInTheDocument()
-    expect(within(form!).getByRole('checkbox', { name: /Usar a Cadência do Playbook/ })).toBeInTheDocument()
+    expect(within(form!).queryByRole('checkbox', { name: /Playbook/ })).not.toBeInTheDocument()
   })
 
   it('sugere só o template existente, com o Sinal da Conta, e criar a cópia não ativa envio', async () => {
@@ -63,14 +63,13 @@ describe('Templates da Althius na Nova sequência', () => {
     expect(await screen.findByText('7 sequências')).toBeInTheDocument()
     const dialog = await abrirNova(usuario)
     await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Conta-alvo' }), 'canva')
-    await within(dialog).findByRole('checkbox', { name: /Usar a Cadência do Playbook/ })
+    await within(dialog).findByRole('checkbox', { name: /Paula Gomes/ })
 
     await usuario.click(within(dialog).getByRole('button', { name: 'Sugerir com os dados da Conta' }))
     expect(await within(dialog).findByRole('status')).toHaveTextContent(/escolha manual continua/i)
     expect(within(dialog).getByRole('combobox', { name: 'Template da Althius' })).toHaveValue('')
     expect(within(dialog).getByRole('button', { name: /Criar sequência/i })).toBeEnabled()
 
-    await usuario.click(within(dialog).getByRole('checkbox', { name: /Usar a Cadência do Playbook/ }))
     await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Template da Althius' }), 'retomada-curta')
     expect(within(dialog).getByRole('checkbox', { name: /Paula Gomes/ })).toBeEnabled()
     await usuario.click(within(dialog).getByRole('button', { name: /Criar sequência/i }))
@@ -86,7 +85,7 @@ describe('Templates da Althius na Nova sequência', () => {
     expect(await screen.findByText('7 sequências')).toBeInTheDocument()
     const dialog = await abrirNova(usuario)
     await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Conta-alvo' }), 'canva')
-    await usuario.click(await within(dialog).findByRole('checkbox', { name: /Usar a Cadência do Playbook/ }))
+    await within(dialog).findByRole('checkbox', { name: /Paula Gomes/ })
     expect(within(dialog).getByRole('combobox', { name: 'Template da Althius' })).toHaveValue('')
     await usuario.click(within(dialog).getByRole('button', { name: /Criar sequência/i }))
 

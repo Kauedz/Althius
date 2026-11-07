@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,15 +10,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  useDados,
   useDadosDeContas,
   useDadosDeSequencias,
   useFonteDeContas,
   useFonteDeSequencias,
-  useFonteDoPlaybook,
 } from '@/fonte/contexto'
 import type { Contato } from '@/fonte/contas-tipos'
-import { modeloDeCadencia, passosDoModelo } from '@/fonte/modelo-de-cadencia'
 import { copiarTemplate, type TemplateDaAlthius } from '@/fonte/templates-althius'
 
 interface Props {
@@ -62,7 +59,6 @@ function FormularioNovaSequencia({
   const [carregandoContatos, setCarregandoContatos] = useState(false)
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
-  const [usarModelo, setUsarModelo] = useState(true)
   const [templateId, setTemplateId] = useState('')
   const [templateProprioId, setTemplateProprioId] = useState('')
   const [templateProprioLocal, setTemplateProprioLocal] = useState<TemplateDaAlthius | null>(null)
@@ -74,19 +70,7 @@ function FormularioNovaSequencia({
   const [avisoSugestao, setAvisoSugestao] = useState('')
   const [sugerindo, setSugerindo] = useState(false)
 
-  // O modelo vem da Cadência do Playbook (playbook 05); sem Playbook ou sem Cadência preenchida, a Sequência nasce vazia.
-  const fonteDoPlaybook = useFonteDoPlaybook()
-  const cadenciaDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('cadencia').catch(() => undefined), [])
-  const templatesDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('templates').catch(() => undefined), [])
-  const modelo = useMemo(
-    () =>
-      modeloDeCadencia(
-        cadenciaDoPlaybook?.vigente?.conteudo.linhas ?? [],
-        templatesDoPlaybook?.vigente?.conteudo.linhas ?? [],
-      ),
-    [cadenciaDoPlaybook, templatesDoPlaybook],
-  )
-  const comModelo = modelo.toques.length > 0
+  // A estrutura vem de um template do fluxo de Sequências (da Althius ou próprio); sem template, a Sequência nasce vazia.
   const { dados: templatesDaAlthius } = useDadosDeSequencias((f) => f.templatesDaAlthius(), [])
   const { dados: templatesProprios } = useDadosDeSequencias((f) => f.templatesProprios(), [])
   const templates = templatesDaAlthius ?? []
@@ -173,9 +157,7 @@ function FormularioNovaSequencia({
         ? copiarTemplate(templateProprioEscolhido, participantesIds[0])
         : templateEscolhido
           ? copiarTemplate(templateEscolhido, participantesIds[0])
-          : comModelo && usarModelo
-            ? passosDoModelo(modelo.toques, participantesIds[0])
-            : undefined
+          : undefined
       const nova = await fonteSequencias.criarSequencia({
         contaId,
         participantesIds,
@@ -198,7 +180,6 @@ function FormularioNovaSequencia({
       const sugestao = await fonteSequencias.sugerirTemplateDaAlthius(contaId)
       if (sugestao.motivo === 'ok' && sugestao.templateId && templates.some((template) => template.id === sugestao.templateId)) {
         setTemplateId(sugestao.templateId)
-        setUsarModelo(false)
         setJustificativa(sugestao.justificativa)
         return
       }
@@ -235,13 +216,6 @@ function FormularioNovaSequencia({
         nome: templateProprioEscolhido.nome,
         resumo: templateProprioEscolhido.resumo,
         passos: templateProprioEscolhido.passos,
-      }
-    }
-    if (comModelo && usarModelo && modelo.toques.length > 0) {
-      return {
-        nome: 'Cadência do Playbook',
-        resumo: 'Estrutura da Cadência, sem destinatário.',
-        passos: passosDoModelo(modelo.toques, participantesIds[0] ?? 'sem-contato'),
       }
     }
     return null
@@ -289,7 +263,6 @@ function FormularioNovaSequencia({
       setTemplateProprioLocal(gravado)
       setTemplateProprioId(gravado.id)
       setTemplateId('')
-      setUsarModelo(false)
       setPreviaPropria(null)
       setAvisoProprio('')
     } catch (err) {
@@ -309,7 +282,6 @@ function FormularioNovaSequencia({
       if (sugestao.motivo === 'ok' && sugestao.templateId && legivel) {
         setTemplateProprioId(sugestao.templateId)
         setTemplateId('')
-        setUsarModelo(false)
         setJustificativa(sugestao.justificativa)
         return
       }
@@ -438,7 +410,6 @@ function FormularioNovaSequencia({
             onChange={(e) => {
               setTemplateId(e.target.value)
               setAvisoSugestao('')
-              if (e.target.value) setUsarModelo(false)
             }}
             className="campo h-10 text-sm text-al-ink bg-al-bg"
           >
@@ -495,7 +466,6 @@ function FormularioNovaSequencia({
               setPreviaPropria(null)
               if (e.target.value) {
                 setTemplateId('')
-                setUsarModelo(false)
               }
             }}
             className="campo h-10 text-sm text-al-ink bg-al-bg"
@@ -558,38 +528,6 @@ function FormularioNovaSequencia({
                 Confirmar salvamento
               </button>
             </div>
-          )}
-        </div>
-      )}
-
-      {contaId && !jaTemSequencia && comModelo && (
-        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
-          <label className="flex cursor-pointer items-center gap-2.5 font-medium">
-            <input
-              type="checkbox"
-              checked={usarModelo}
-              onChange={(e) => setUsarModelo(e.target.checked)}
-              className="size-4"
-            />
-            Usar a Cadência do Playbook como modelo ({modelo.toques.length} {modelo.toques.length === 1 ? 'toque' : 'toques'})
-          </label>
-          {usarModelo && (
-            <>
-              <ol className="flex flex-col gap-1 text-al-muted">
-                {modelo.toques.map((toque) => (
-                  <li key={`${toque.dia}-${toque.titulo}`}>
-                    Dia {toque.dia} · {toque.titulo} ({toque.canal === 'email' ? 'E-mail' : toque.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'})
-                    {toque.dependeDoCanal && <span className="ml-1.5 text-al-atencao">depende do canal</span>}
-                  </li>
-                ))}
-              </ol>
-              {modelo.foraDoEscopo.length > 0 && (
-                <p className="text-al-muted">
-                  Ficam de fora, por ainda não terem canal: {modelo.foraDoEscopo.join(', ')}.
-                </p>
-              )}
-              <p className="text-al-muted">Nenhum toque sai sem a sua confirmação de passo.</p>
-            </>
           )}
         </div>
       )}
