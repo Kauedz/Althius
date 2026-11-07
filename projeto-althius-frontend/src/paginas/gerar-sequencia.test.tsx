@@ -34,7 +34,7 @@ function abrir(modo: ModoDoAmbiente, conta: Partial<ContaAlvo>, { comSequencia =
       ...sequencias,
       sequenciaPorConta: async (id) => (comSequencia ? sequencias.sequenciaPorConta(id) : null),
     },
-    fonteDeOnboarding: criarFonteDeOnboardingSimulada({ atrasoDaLeituraMs: 0, resolverLogo: async () => null, jaConcluido: true }),
+    fonteDeOnboarding: criarFonteDeOnboardingSimulada({ resolverLogo: async () => null, jaConcluido: true }),
     fonteDeSinais: sinais,
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDeConexoes: criarFonteDeConexoesSimulada(),

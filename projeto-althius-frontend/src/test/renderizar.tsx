@@ -143,7 +143,6 @@ function montarApp({
     ...opcoesSequencias,
   })
   const fonteDeOnboarding = criarFonteDeOnboardingSimulada({
-    atrasoDaLeituraMs: 0,
     resolverLogo: async () => null,
     jaConcluido: true,
     ...opcoesOnboarding,

@@ -1,6 +1,7 @@
 import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw, RadioTower } from 'lucide-react'
 import { Fragment, useEffect, useId, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AvisoDoContextoPendente } from '@/components/aviso-do-contexto-pendente'
 import { Pagina } from '@/components/pagina'
 import { PorQueEssaAderencia } from '@/components/por-que-essa-aderencia'
 import type { ExplicacaoDeAderencia } from '@/fonte/aderencia-explicada'
@@ -760,6 +761,7 @@ export function PaginaDescobertas() {
           <div role="dialog" aria-label="Confirmar filtros da busca" className="rounded-2xl w-full max-w-lg border border-al-line bg-al-surface p-6 shadow-xl">
             <h3 className="text-base font-semibold text-al-ink">Confirmar filtros da busca</h3>
             <p className="mt-1 text-xs text-al-muted">Do seu ICP{criteriosBusca.resumo ? `: ${criteriosBusca.resumo}` : '.'}</p>
+            <div className="mt-3"><AvisoDoContextoPendente operacao="A busca pelo ICP" /></div>
             <div className="mt-4 grid gap-3">
               {criteriosDoDialog && (
                 <>

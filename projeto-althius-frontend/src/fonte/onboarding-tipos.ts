@@ -46,8 +46,11 @@ export const SITUACOES_DO_ITEM = ['pendente', 'concluido', 'pulado'] as const
 
 export type SituacaoDoItem = (typeof SITUACOES_DO_ITEM)[number]
 
-/** Os itens do checklist na ordem do Norte. */
-export const ITENS_DO_CHECKLIST = ['produto', 'persona', 'sinal'] as const
+/**
+ * Os itens do checklist na ordem do Norte. O Contexto da empresa (Empresa, ICP e Personas) substitui o mini-ICP e as
+ * Personas do onboarding (contexto-da-empresa 03): ele é gerado pelo site e fica em Configurações.
+ */
+export const ITENS_DO_CHECKLIST = ['contexto', 'sinal'] as const
 
 export type ItemDoChecklist = (typeof ITENS_DO_CHECKLIST)[number]
 
@@ -57,41 +60,12 @@ export interface WorkspaceSugerido {
   nomeSugerido: string
 }
 
-/** O item 1 do checklist: o mini-ICP e a lógica curta de produto, que a leitura do site sugere. */
-export interface MiniIcpEProduto {
-  miniIcp: string
-  oQueVende: string
-  porQueCompram: string
-}
-
-export const CAMPOS_DO_MINI_ICP_E_PRODUTO = ['miniIcp', 'oQueVende', 'porQueCompram'] as const satisfies readonly (keyof MiniIcpEProduto)[]
-
 /**
- * A leitura mínima do site do Cliente, a única IA do onboarding: o que ele vende, o ICP provável e as
- * Personas possíveis, considerando para quem ele vende. É só uma base editável para os itens 1 e 2.
+ * O que a pessoa fez em cada item. O Contexto da empresa conta como concluído pela versão vigente dele, não por esta
+ * marca: aqui fica só se a pessoa o pulou.
  */
-export interface LeituraDoSite extends MiniIcpEProduto {
-  personas: string[]
-}
-
-export const SITUACOES_DA_LEITURA = ['inativa', 'lendo', 'pronta', 'falhou'] as const
-
-export type SituacaoDaLeitura = (typeof SITUACOES_DA_LEITURA)[number]
-
-export interface EstadoDaLeitura {
-  situacao: SituacaoDaLeitura
-  /** A última leitura que chegou. Serve para saber quais campos ainda são só a sugestão dela. */
-  resultado: LeituraDoSite | null
-}
-
-export interface ChecklistNorte extends MiniIcpEProduto {
-  /**
-   * As Personas possíveis do Workspace, uma por item. São uma base do onboarding: não mudam as definições de
-   * Personas da Memória do Workspace e não são a Persona de um Contato.
-   */
-  personas: string[]
-  produto: SituacaoDoItem
-  persona: SituacaoDoItem
+export interface ChecklistNorte {
+  contexto: SituacaoDoItem
   sinal: SituacaoDoItem
 }
 
@@ -108,7 +82,8 @@ export interface EstadoDeOnboarding {
    * aí vale a inicial do nome.
    */
   logoDoSite: string | null
-  leitura: EstadoDaLeitura
+  /** A pessoa preferiu informar o site depois, em Configurações → Contexto da empresa. */
+  sitePulado: boolean
   comoConheceu: OrigemHdyhau | null
   convitePulado: boolean
   workspace: WorkspaceSugerido | null
@@ -136,14 +111,14 @@ export interface ProgressoDoOnboarding {
 /** Como o Workspace criado no onboarding se apresenta na Casca. */
 export interface IdentidadeDoWorkspace {
   nome: string
-  /** O que o Cliente vende, do item 1 do checklist. Vazio enquanto ninguém o preencheu. */
+  /** Uma linha sobre o Cliente. Vazia: a descrição fica no Contexto da empresa. */
   descricao: string
   logo: string | null
 }
 
 /**
- * Única fronteira de estado do onboarding (wizard Day0, leitura do site e checklist).
- * A UI nunca chama um modelo: a leitura do site só acontece por `lerSite`.
+ * Única fronteira de estado do onboarding (wizard Day0 e checklist). A leitura do site não é desta Fonte: ela gera o
+ * Contexto da empresa pela `FonteDoContextoDaEmpresa`.
  */
 export interface FonteDeOnboarding extends FonteObservavel {
   ler(): Promise<EstadoDeOnboarding>
@@ -156,28 +131,19 @@ export interface FonteDeOnboarding extends FonteObservavel {
   definirPapel(papel: PapelNoDay0): Promise<EstadoDeOnboarding>
   /** O nome do Cliente, que o Day0 pede como a empresa, só sugere o nome do Workspace. Não cria Conta-alvo. */
   definirCliente(nome: string): Promise<EstadoDeOnboarding>
-  /** Confirma o domínio do site e, sem esperar, resolve o logo do Workspace e começa a leitura do site. */
+  /** Confirma o domínio do site e, sem esperar, resolve o logo do Workspace. */
   definirDominio(dominio: string): Promise<EstadoDeOnboarding>
+  /** Segue sem o site: ele é informado depois, em Configurações → Contexto da empresa. Não bloqueia a entrada. */
+  pularSite(): Promise<EstadoDeOnboarding>
   /**
    * Procura o logo do site do domínio (o SVG ou o favicon) sem guardar nada: é a prévia do passo do domínio.
    * Nenhum quando o site não tem logo.
    */
   buscarLogo(dominio: string): Promise<string | null>
-  /**
-   * A leitura do site: recebe o domínio e devolve o que a empresa vende, o ICP provável e as Personas possíveis.
-   * Só lê o domínio confirmado no Day0 do criador. A leitura pré-preenche os itens 1 e 2 por `aplicarLeitura`,
-   * sem sobrescrever o que a pessoa editou. Devolve nenhuma quando falha, quando uma leitura mais nova a
-   * substitui ou quando o domínio não é o confirmado; uma falha só deixa os campos como estão.
-   */
-  lerSite(dominio: string): Promise<LeituraDoSite | null>
   definirComoConheceu(origem: OrigemHdyhau): Promise<EstadoDeOnboarding>
   pularConvite(): Promise<EstadoDeOnboarding>
   /** Segue do passo de convite sem pular. Nenhum e-mail é enviado nem guardado. */
   confirmarConvite(): Promise<EstadoDeOnboarding>
-  salvarProduto(campos: MiniIcpEProduto): Promise<EstadoDeOnboarding>
-  salvarPersonas(personas: readonly string[]): Promise<EstadoDeOnboarding>
-  concluirProduto(): Promise<EstadoDeOnboarding>
-  concluirPersona(): Promise<EstadoDeOnboarding>
   pularItem(item: ItemDoChecklist): Promise<EstadoDeOnboarding>
   /** Abrir a experiência de Sinais conclui o item 3. Não cria Monitoramento. */
   registrarVisitaASinais(): Promise<EstadoDeOnboarding>

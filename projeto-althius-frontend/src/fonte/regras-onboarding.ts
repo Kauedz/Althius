@@ -1,14 +1,11 @@
 // Regras do onboarding pós-login: o que cada ramo percorre, quando a Casca exige o onboarding, quanto dele está
-// completo e como a leitura do site entra no checklist. Todas derivam só do estado da Fonte de onboarding, então
-// uma Fonte real usa as mesmas regras que a simulada.
+// completo. O Contexto da empresa conta pela versão vigente dele, que a tela lê da Fonte do contexto. As demais derivam
+// só do estado da Fonte de onboarding, então uma Fonte real usa as mesmas regras que a simulada.
 import {
-  CAMPOS_DO_MINI_ICP_E_PRODUTO,
   ITENS_DO_CHECKLIST,
-  type ChecklistNorte,
   type EstadoDeOnboarding,
   type EtapaDeOnboarding,
   type IdentidadeDoWorkspace,
-  type LeituraDoSite,
   type MarcoDoOnboarding,
   type ProgressoDoOnboarding,
   type RamoDeOnboarding,
@@ -57,11 +54,11 @@ export function precisaDoOnboarding(estado: EstadoDeOnboarding): boolean {
   return !estado.concluido && !estado.day0Concluido
 }
 
-/** Quanto do onboarding já está completo. */
-export function progressoDoOnboarding(estado: EstadoDeOnboarding): ProgressoDoOnboarding {
+/** Quanto do onboarding já está completo. `contextoVigente`: o Contexto da empresa já tem versão vigente. */
+export function progressoDoOnboarding(estado: EstadoDeOnboarding, contextoVigente = false): ProgressoDoOnboarding {
   const marcos = (estado.ramo ? REGRAS_DO_RAMO[estado.ramo].marcos : []).map((marco) => ({
     marco,
-    feito: marcoFeito(estado, marco),
+    feito: marcoFeito(estado, marco, contextoVigente),
   }))
   const feitos = marcos.filter(({ feito }) => feito).length
   const percentual = marcos.length ? Math.round((feitos / marcos.length) * 100) : 0
@@ -73,41 +70,20 @@ export function progressoDoOnboarding(estado: EstadoDeOnboarding): ProgressoDoOn
   }
 }
 
-/** O Day0 exige o Workspace e o site, então os dois já estão feitos quando o checklist abre. */
-function marcoFeito(estado: EstadoDeOnboarding, marco: MarcoDoOnboarding): boolean {
+/** O Day0 exige o Workspace; o site pode ficar para depois. */
+function marcoFeito(estado: EstadoDeOnboarding, marco: MarcoDoOnboarding, contextoVigente: boolean): boolean {
   if (marco === 'workspace') return estado.day0Concluido
   if (marco === 'site') return estado.dominio !== ''
+  if (marco === 'contexto') return contextoVigente
   return estado.checklist[marco] === 'concluido'
 }
 
 /**
- * Como o Workspace que o onboarding criou se apresenta na Casca: o nome sugerido pela empresa, o que o Cliente
- * vende e o logo do site. Nenhuma quando o onboarding não criou um Workspace com nome, e a Casca fica com o da demo.
+ * Como o Workspace que o onboarding criou se apresenta na Casca: o nome sugerido pela empresa e o logo do site.
+ * Nenhuma quando o onboarding não criou um Workspace com nome, e a Casca fica com o da demo.
  */
 export function identidadeDoWorkspace(estado: EstadoDeOnboarding): IdentidadeDoWorkspace | null {
   const nome = estado.workspace?.nomeSugerido
   if (!nome) return null
-  return { nome, descricao: estado.checklist.oQueVende, logo: estado.logoDoSite }
-}
-
-/**
- * A leitura do site pré-preenche os itens 1 e 2 sem sobrescrever o que a pessoa editou. Um campo ainda é só
- * sugestão quando está igual ao que a leitura anterior trouxe, ou vazio se nenhuma leitura chegou antes. Depois de
- * uma leitura, um campo vazio foi descartado pela pessoa e continua vazio.
- */
-export function aplicarLeitura(
-  checklist: ChecklistNorte,
-  anterior: LeituraDoSite | null,
-  leitura: LeituraDoSite,
-): ChecklistNorte {
-  const aindaESugestao = (atual: string, daAnterior: string | undefined) => (anterior ? atual === daAnterior : !atual)
-  const novo: ChecklistNorte = { ...checklist, personas: [...checklist.personas] }
-  for (const campo of CAMPOS_DO_MINI_ICP_E_PRODUTO) {
-    if (aindaESugestao(checklist[campo], anterior?.[campo])) novo[campo] = leitura[campo]
-  }
-  const emTexto = (personas: readonly string[]) => personas.join('\n')
-  if (aindaESugestao(emTexto(checklist.personas), anterior ? emTexto(anterior.personas) : undefined)) {
-    novo.personas = [...leitura.personas]
-  }
-  return novo
+  return { nome, descricao: '', logo: estado.logoDoSite }
 }

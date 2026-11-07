@@ -34,7 +34,6 @@ export function Moldura({
 }) {
   const etapas = etapasDoRamo(estado.ramo)
   const indice = etapas.indexOf(estado.etapa)
-  const lendoOSite = estado.leitura.situacao === 'lendo' && estado.etapa !== 'checklist'
 
   return (
     <div className="min-h-screen bg-al-bg text-al-ink">
@@ -66,11 +65,6 @@ export function Moldura({
         <div className="flex flex-col gap-6">
           <h1 className="titulo-display text-3xl">{titulo}</h1>
           {children}
-          {lendoOSite && (
-            <p role="status" className="text-sm text-al-muted">
-              Lendo o site {estado.dominio}. Você pode seguir enquanto isso.
-            </p>
-          )}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-al-line pt-6">
             <button type="button" className={BOTAO_SECUNDARIO} disabled={indice <= 0} onClick={() => void fonte.voltar()}>
               Voltar
