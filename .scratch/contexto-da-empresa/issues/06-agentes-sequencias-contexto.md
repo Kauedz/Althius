@@ -4,19 +4,19 @@
 
 **Blocked by:** 01: Contexto da empresa com os três textos, como no Clay
 
-**Status:** ready-for-agent
+**Status:** in-review (implementado; falta o pgTAP rodar no CI, aplicar a migration no remoto antes do merge e publicar as duas funções)
 
 **Referência:** spec Contexto da empresa — experiência do AI Context do Clay, aprovada em 05/11/2026. Divisão aprovada para publicação em 06/11/2026.
 
 ## Critérios de aceite
 
-- [ ] Scopus, Ethos, Rhetor e Oraculum recebem contexto adequado e versão vigente, preservando seus papéis.
-- [ ] Rhetor gera Sequência usando Empresa, ICP, Personas e configurações próprias do fluxo de Sequências.
-- [ ] Retirar consultas operacionais às seções antigas nos consumidores deste ticket; não criar Playbook oculto nem importar seu conteúdo.
-- [ ] Dados operacionais faltantes são obtidos no fluxo correspondente sem inventar scripts, SLA ou cadência.
-- [ ] Salvar nova versão afeta próximas execuções; conversas, propostas e Sequências existentes preservam histórico e configuração.
-- [ ] Manter permissão exclusiva de Administrador para alterar o contexto; ferramentas antigas não podem contornar essa regra.
-- [ ] Ausência de contexto é comunicada e encaminhada para configuração quando necessária.
+- [x] Scopus, Ethos, Rhetor e Oraculum recebem contexto adequado e versão vigente, preservando seus papéis.
+- [x] Rhetor gera Sequência usando Empresa, ICP, Personas e configurações próprias do fluxo de Sequências.
+- [x] Retirar consultas operacionais às seções antigas nos consumidores deste ticket; não criar Playbook oculto nem importar seu conteúdo.
+- [x] Dados operacionais faltantes são obtidos no fluxo correspondente sem inventar scripts, SLA ou cadência.
+- [x] Salvar nova versão afeta próximas execuções; conversas, propostas e Sequências existentes preservam histórico e configuração.
+- [x] Manter permissão exclusiva de Administrador para alterar o contexto; ferramentas antigas não podem contornar essa regra.
+- [x] Ausência de contexto é comunicada e encaminhada para configuração quando necessária.
 
 ## Pode mexer
 
@@ -35,3 +35,16 @@ Cada entrega mantém os checks aplicáveis verdes. Respeitar as regras de migrat
 ## Execução
 
 Implementar apenas após os bloqueadores. Consultar a spec completa e as regras do projeto. A coexistência técnica necessária durante a migração é temporária; a experiência final tem somente os três textos do Contexto. Não reutilizar dados do Playbook para preencher o novo conteúdo.
+
+## Comments
+
+- 2026-11-07: implementado na branch `contexto-da-empresa-03-onboarding`.
+  - Banco: `20261221040000_agentes_pelo_contexto.sql` acrescenta `agent_runs.company_context_version` e a função `agent_run_company_context` (só `service_role`): a primeira leitura da Execução fixa a versão vigente (0 sem contexto) e as seguintes devolvem a mesma, mesmo que um Administrador salve outra no meio; a próxima Execução já usa a nova. `compute_agent_prompt_suggestions` (redefinida de `20261023100000`) olha o ICP e as Personas do contexto, não as seções do Playbook; sem eles, os Agentes oferecem ajudar a escrever, e a sugestão do Rhetor não inventa mais "4 passos". `agent_run_playbook` e `agent_propose_playbook_revision` ficam no banco sem uso pelo motor (retirada no ticket 07, sem migração destrutiva). pgTAP novo `agentes_pelo_contexto.sql` (16).
+  - Motor (`_shared/orquestracao.ts`, worker do Hermes e `agent-conversation`): `leitorDoContexto` lê o contexto uma vez por Execução e `contextoDaEmpresa` escreve os três textos com a versão, o foco de cada Especialidade (Scopus: ICP; Ethos: Personas; Rhetor: Empresa e Personas; Oraculum: Empresa), o que falta e a regra de não inventar cadência, scripts, templates, SLA nem critérios de passagem. Sem contexto, o Agente pergunta o que a empresa vende e leva a Configurações → Contexto da empresa; falha de leitura vira aviso, não contexto vazio. O Agente não altera o contexto: só o Administrador.
+  - Ferramentas: `propor_mudanca_no_playbook` saiu do catálogo (um pedido dela vira passo recusado, sem Aprovação). `propor_sequencia` escreve pela Empresa, Personas e ICP; a cadência vem do pedido ou do template, e sem nenhum segue o padrão de 3 e-mails com `cadencia_padrao` (antes `playbook_vazio`) e o aviso. `buscar_contas_pelo_icp`, `propor_aderencia` e `sugerir_template_de_sequencia` citam o Perfil de cliente ideal do Contexto da empresa.
+  - Tela: o pedido do "Gerar Sequência" cita o Contexto da empresa; o cartão de Sequência do detalhe da Conta mostra `AvisoDoContextoPendente` ("A Sequência pelo Rhetor") no Workspace operacional, sem bloquear.
+  - Fica para o ticket 07: `reply-proposal-runner` (rascunho de resposta do Rhetor ainda lê o Playbook), `signal-plan`, as leituras de Playbook do Canal WhatsApp, `pedir-ao-ethos.tsx`, e a "Nova sequência"/criação em lote, que usam a Cadência do Playbook como modelo (a criação em lote não cria nada sem ela). O cache de sugestões (até 6 h) não é invalidado quando o contexto é salvo.
+  - Testes: deno `orquestracao-contexto.test.ts` (11), `worker-por-agente`, `runner-rodadas`, `ferramentas-dos-agentes-sequencia` (13), `worker-contexto-so-do-administrador` (2); suíte Deno 2019/0; vitest `gerar-sequencia.test.tsx` (9), suíte 2164 com a falha conhecida de `gaveta-de-historico.test.tsx`; `tsc -b`, oxlint e `deno check` limpos. O pgTAP roda no CI (sem Docker na máquina).
+  - Passos do Nan: a migration `20261221040000_agentes_pelo_contexto.sql` é aplicada no remoto pelo fluxo de `docs/agents/migrations.md` antes do merge (antes dela, a ponte e o worker avisam que o contexto não pôde ser lido). Depois, publicar a ponte e reiniciar o worker do Hermes onde ele roda, com o código novo (o comando de ligar está em `supabase/functions/_hermes-worker/README.md`, passo 6):
+    `npx supabase functions deploy agent-conversation --project-ref ycbdilsmydvzezhlymty`
+    Nenhum segredo novo.

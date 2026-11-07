@@ -115,7 +115,7 @@ Deno.test('Conversa coordenada sem Menção (Gerar Sequência) com porAgente=fal
     run_id: 'r-coord',
     kind: 'coordenada',
     workspace_name: 'Norte',
-    request_text: `Monte uma Sequência de e-mail para a Conta-alvo Alfa (id ${CONTA}), a partir da Conta enriquecida, do ICP, do Comitê e da Cadência do Playbook.`,
+    request_text: `Monte uma Sequência de e-mail para a Conta-alvo Alfa (id ${CONTA}), a partir da Conta enriquecida, do Comitê e do Contexto da empresa.`,
     agent_id: null,
     mentions: [],
     agents: [ETHOS, RHETOR],

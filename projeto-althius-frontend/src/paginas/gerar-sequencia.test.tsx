@@ -14,9 +14,19 @@ import { criarFonteDeConexoesSimulada } from '@/fonte/simulada-conexoes'
 import { criarFonteDeSequenciasSimulada } from '@/fonte/simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from '@/fonte/simulada-sinais'
 import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
+import { criarFonteDoContextoDaEmpresaSimulada } from '@/fonte/simulada-contexto-da-empresa'
+import type { FonteDoContextoDaEmpresa } from '@/fonte/contexto-da-empresa-tipos'
 import { DATA_HOJE_TESTES } from '@/test/renderizar'
 
-function abrir(modo: ModoDoAmbiente, conta: Partial<ContaAlvo>, { comSequencia = false, semAgentes = false } = {}) {
+function abrir(
+  modo: ModoDoAmbiente,
+  conta: Partial<ContaAlvo>,
+  { comSequencia = false, semAgentes = false, contexto }: {
+    comSequencia?: boolean
+    semAgentes?: boolean
+    contexto?: FonteDoContextoDaEmpresa
+  } = {},
+) {
   const simulada = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
   // Sem nenhum Agente (nem o Rhetor) no Workspace: o atalho não pode depender de achar um.
   const fonte = semAgentes ? { ...simulada, agentes: async () => [] } : simulada
@@ -38,6 +48,7 @@ function abrir(modo: ModoDoAmbiente, conta: Partial<ContaAlvo>, { comSequencia =
     fonteDeSinais: sinais,
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDeConexoes: criarFonteDeConexoesSimulada(),
+    ...(contexto ? { fonteDoContextoDaEmpresa: contexto } : {}),
     indisponiveis: new Set(),
   }
   render(<App ambiente={ambiente} rotaInicial="/contas/openai" animarDigitacao={false} />)
@@ -55,7 +66,7 @@ describe('Gerar Sequência a partir da Conta', () => {
     expect(conversar).toHaveBeenCalledTimes(1)
     expect(conversar.mock.calls[0][0]).toBe('rhetor')
     expect(conversar.mock.calls[0][1].texto).toMatch(/Conta-alvo OpenAI \(id openai\)/)
-    expect(conversar.mock.calls[0][1].texto).toMatch(/Sinal.*Cadência/)
+    expect(conversar.mock.calls[0][1].texto).toMatch(/Sinal.*Contexto da empresa/)
     expect(conversarCoordenado).not.toHaveBeenCalled()
     expect(screen.queryByText(/só leitura/i)).not.toBeInTheDocument()
   })
@@ -88,12 +99,26 @@ describe('Gerar Sequência a partir da Conta', () => {
   it('aparece na Conta não Quente e pede contexto enriquecido', async () => {
     const { usuario, conversar } = abrir('real', { ...QUENTE_E_MINHA, quente: false })
     await usuario.click(await screen.findByRole('button', { name: 'Gerar Sequência' }))
-    expect(conversar.mock.calls[0][1].texto).toMatch(/Conta enriquecida.*ICP.*Comitê.*Cadência/)
+    expect(conversar.mock.calls[0][1].texto).toMatch(/Conta enriquecida.*Comitê.*Contexto da empresa.*Perfil de cliente ideal/)
   })
 
   it('na Demonstração, nada muda', async () => {
     abrir('demonstracao', QUENTE_E_MINHA)
     await screen.findByRole('button', { name: /Criar sequência/ })
     expect(screen.queryByRole('button', { name: 'Gerar Sequência' })).not.toBeInTheDocument()
+  })
+
+  it('sem Contexto da empresa, avisa que a Sequência pelo Rhetor precisa dele e leva a Configurações, sem bloquear', async () => {
+    const contexto = criarFonteDoContextoDaEmpresaSimulada({ inicial: null, site: 'openai.test' })
+    abrir('real', QUENTE_E_MINHA, { contexto })
+    expect(await screen.findByText(/A Sequência pelo Rhetor precisa do Contexto da empresa/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Abrir Contexto da empresa' })).toHaveAttribute('href', '/configuracoes/contexto')
+    expect(screen.getByRole('button', { name: 'Gerar Sequência' })).toBeEnabled()
+  })
+
+  it('com o Contexto da empresa vigente, não há aviso', async () => {
+    abrir('real', QUENTE_E_MINHA, { contexto: criarFonteDoContextoDaEmpresaSimulada() })
+    expect(await screen.findByRole('button', { name: 'Gerar Sequência' })).toBeInTheDocument()
+    expect(screen.queryByText(/precisa do Contexto da empresa/)).not.toBeInTheDocument()
   })
 })

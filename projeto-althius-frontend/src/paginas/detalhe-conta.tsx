@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, Building2, ExternalLink, Pause, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { AvisoDoContextoPendente } from '@/components/aviso-do-contexto-pendente'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
@@ -322,6 +323,9 @@ export function DetalheConta({ contaId }: Props) {
                 <p className="text-xs text-al-muted">
                   Crie um plano estruturado de abordagem por e-mail, LinkedIn e outros canais para esta empresa.
                 </p>
+                {ambiente.modo === 'real' && (
+                  <div className="mt-2"><AvisoDoContextoPendente operacao="A Sequência pelo Rhetor" /></div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">

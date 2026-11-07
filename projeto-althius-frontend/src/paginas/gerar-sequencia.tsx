@@ -8,8 +8,8 @@ import type { ContaAlvo } from '@/fonte/contas-tipos'
 /** O pedido coordenado, com o nome e o id da Conta-alvo para a etapa interna de Sequência. */
 function pedidoDeSequencia(conta: Pick<ContaAlvo, 'id' | 'nome' | 'quente'>): string {
   const contexto = conta.quente
-    ? 'a partir do Sinal que a deixou Quente e da Cadência do Playbook'
-    : 'a partir da Conta enriquecida, do ICP, do Comitê e da Cadência do Playbook'
+    ? 'a partir do Sinal que a deixou Quente e do Contexto da empresa (Empresa, Perfil de cliente ideal e Personas)'
+    : 'a partir da Conta enriquecida, do Comitê e do Contexto da empresa (Empresa, Perfil de cliente ideal e Personas)'
   return `Monte uma Sequência de e-mail para a Conta-alvo ${conta.nome} (id ${conta.id}), ${contexto}.`
 }
 

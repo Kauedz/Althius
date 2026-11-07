@@ -8,7 +8,7 @@ import {
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
-import { anexosDoBanco, creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
+import { anexosDoBanco, creditosDoBanco, CONTEXTO_VAZIO, type ContextoDaEmpresaNaExecucao } from '../_shared/orquestracao.ts'
 import { createHandler, type Db, type Inicio, recusaDoEnvioPelosAgentes } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
 import { modeloDoGroq } from './model-groq.ts'
@@ -142,8 +142,8 @@ const runDb: RunDb = {
   custo: async (runId) => {
     await rpc<void>('record_agent_run_cost', { p_run_id: runId })
   },
-  playbook: async (runId, specialty) =>
-    (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
+  contextoDaEmpresa: async (runId) =>
+    (await rpc<ContextoDaEmpresaNaExecucao | null>('agent_run_company_context', { p_run_id: runId })) ?? CONTEXTO_VAZIO,
   creditos: creditosDoBanco(rpc),
   // A chave de IA do cliente do Workspace (créditos 08): lida do Vault só aqui, nunca gravada nem registrada.
   // Os anexos do pedido (PR-10): o texto dos documentos e, nas imagens, os bytes lidos do bucket privado.

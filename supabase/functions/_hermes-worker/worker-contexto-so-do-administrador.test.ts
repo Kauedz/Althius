@@ -1,7 +1,7 @@
-// A proposta de mudança no Playbook pelo Hermes (CRM-09): o Ethos pede `propor_mudanca_no_playbook` em JSON, o worker
-// executa pelo mesmo catálogo da ponte, grava o passo com o link da Aprovação e devolve o resultado ao Hermes. Sem as
-// ferramentas (HERMES_FERRAMENTAS=off), nada é proposto. Hermes, banco e ferramentas são dublês.
-import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
+// Só um Administrador altera o Contexto da empresa (contexto-da-empresa 06): a antiga proposta de mudança no Playbook
+// (CRM-09) saiu do catálogo, e um Agente que ainda a peça em JSON não cria Aprovação nem grava nada. Hermes, banco e
+// ferramentas são dublês.
+import { assert, assertEquals } from 'jsr:@std/assert@1'
 import type { BancoDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import type { AgenteDoWorkspace, Reserva, TipoDeEvento } from '../_shared/orquestracao.ts'
 import { type CorpoDoRun, createWorker, type FilaDb, type FimDoHermes, type Hermes } from './worker.ts'
@@ -22,7 +22,6 @@ function montar(saidas: string[], opcoes: { semFerramentas?: boolean } = {}) {
   const eventos: { kind: TipoDeEvento; agentId: string | null; payload: Record<string, unknown> }[] = []
   const fechamentos: { status: string; errorCode: string | null }[] = []
   const chamadas: CorpoDoRun[] = []
-  const revisoes: string[] = []
   const db: FilaDb = {
     listQueued: () => Promise.resolve(['r1']),
     claim: () => Promise.resolve(RESERVA),
@@ -41,10 +40,6 @@ function montar(saidas: string[], opcoes: { semFerramentas?: boolean } = {}) {
     lerContas: () => Promise.resolve([]),
     pedirDescoberta: () => Promise.reject(new Error('não usado')),
     proporEnvio: () => Promise.reject(new Error('não usado')),
-    proporRevisao: (runId, agenteId, a) => (
-      revisoes.push(`${runId}:${agenteId}:${a.secao}:${JSON.stringify(a.conteudo.linhas)}`),
-        Promise.resolve({ approvalId: 'ap-personas', outcome: 'pendente', secao: 'Personas', versaoBase: 0 })
-    ),
   }
   const worker = createWorker({
     db,
@@ -53,7 +48,7 @@ function montar(saidas: string[], opcoes: { semFerramentas?: boolean } = {}) {
     porAgente: true,
     ...(opcoes.semFerramentas ? {} : { ferramentas: { banco, log: () => {} } }),
   })
-  return { worker, eventos, fechamentos, chamadas, revisoes }
+  return { worker, eventos, fechamentos, chamadas }
 }
 
 const PEDIDO = JSON.stringify({
@@ -65,28 +60,20 @@ const PEDIDO = JSON.stringify({
   },
 })
 
-Deno.test('o Ethos propõe as Personas pelo Hermes: o worker cria a Aprovação e grava o passo com o link', async () => {
-  const m = montar([PEDIDO, 'Propus as Personas novas; dependem da Aprovação de um Administrador.\nSTATUS: pronto'])
-  assertEquals(await m.worker.rodada(), 1)
-
-  assertEquals(m.fechamentos, [{ status: 'succeeded', errorCode: null }])
-  assertEquals(m.revisoes, ['r1:a-ethos:personas:[{"papel":"Decisor","cargo":"Diretor industrial"}]'])
-  assertEquals(m.eventos.map((e) => e.kind), ['ferramenta', 'texto'])
-  assertEquals(m.eventos[0].payload, {
-    ferramenta: 'propor_mudanca_no_playbook',
-    descricao: 'Ethos propôs uma nova versão das Personas — aguardando Aprovação de um Administrador',
-    estado: 'aguardando',
-    link: { tipo: 'aprovacao', id: 'ap-personas' },
-  })
-  assertStringIncludes(m.chamadas[0].instructions, 'propor_mudanca_no_playbook')
-  assertStringIncludes(m.chamadas[0].instructions, 'mudança no Playbook que precisa de Aprovação')
-  assertStringIncludes(m.chamadas[1].input, 'O Playbook não mudou ainda')
+Deno.test('o Ethos não recebe a proposta de mudança no Playbook e é avisado de que só um Administrador altera o contexto', async () => {
+  const m = montar(['As Personas mudariam assim: ...\nSTATUS: pronto'])
+  await m.worker.rodada()
+  assert(!m.chamadas[0].instructions.includes('propor_mudanca_no_playbook'))
+  assert(!m.chamadas[0].instructions.includes('mudança no Playbook'))
 })
 
-Deno.test('com as ferramentas desligadas, o Hermes não recebe a proposta e nada é criado', async () => {
-  const m = montar([`${PEDIDO}\nSTATUS: pronto`], { semFerramentas: true })
+Deno.test('um pedido da ferramenta antiga em JSON é recusado à vista: nenhuma Aprovação nasce', async () => {
+  const m = montar([PEDIDO, 'Não consigo alterar o contexto; um Administrador salva em Configurações.\nSTATUS: pronto'])
   await m.worker.rodada()
-  assertEquals(m.revisoes, [])
-  assertEquals(m.eventos.map((e) => e.kind), ['texto'])
-  assert(!m.chamadas[0].instructions.includes('propor_mudanca_no_playbook'))
+  assertEquals(m.eventos.filter((e) => e.kind === 'ferramenta').map((e) => e.payload), [{
+    ferramenta: 'invalida',
+    descricao: 'Ethos pediu uma ferramenta que não pode usar (propor_mudanca_no_playbook)',
+    estado: 'falhou',
+  }])
+  assertEquals(m.fechamentos.length, 1)
 })

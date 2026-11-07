@@ -94,9 +94,13 @@ Deno.test('a descrição usa Sinal quando houver e Conta enriquecida quando não
   assertStringIncludes(descricao, 'Conta enriquecida')
   assertStringIncludes(descricao, 'ICP')
   assertStringIncludes(descricao, 'Comitê')
-  assertStringIncludes(descricao, 'Playbook')
-  assertStringIncludes(descricao, 'seção Cadência do Playbook')
+  assertStringIncludes(descricao, 'Contexto da empresa')
+  assertStringIncludes(descricao, 'Empresa')
+  assertStringIncludes(descricao, 'Personas')
+  assertStringIncludes(descricao, 'cadencia_padrao')
   assertStringIncludes(descricao, '3 passos de E-mail (dia 0, 3 e 7')
+  assertStringIncludes(descricao, 'não invente')
+  assertEquals(descricao.includes('Playbook'), false)
   assertStringIncludes(descricao, '{{primeiro_nome}}')
   assertStringIncludes(descricao, 'Ativar envios')
 })
@@ -206,20 +210,30 @@ Deno.test('cada recusa do banco volta ao Rhetor com o próprio motivo', async ()
   }
 })
 
-Deno.test('com o Playbook vazio, a proposta tem 3 e-mails no dia 0, 3 e 7, e o Rhetor avisa', async () => {
+Deno.test('sem cadência pedida nem template, a proposta segue o padrão de 3 e-mails no dia 0, 3 e 7, e o Rhetor avisa', async () => {
   const { sessao, pedidos } = montar()
-  const r = await sessao.chamar(RHETOR, 'propor_sequencia', { ...PROPOSTA, playbook_vazio: true })
+  const r = await sessao.chamar(RHETOR, 'propor_sequencia', { ...PROPOSTA, cadencia_padrao: true })
   assert(!r.erro)
-  assertStringIncludes(r.paraOAgente, 'a seção Cadência do Playbook está vazia')
-  assertStringIncludes(pedidos[0].justificativa, 'O Playbook não tem a seção Cadência')
+  assertStringIncludes(r.paraOAgente, 'seguiu o padrão de 3 e-mails (dia 0, 3 e 7)')
+  assertStringIncludes(pedidos[0].justificativa, 'Nenhuma cadência foi definida para esta Sequência')
+  assertEquals(r.paraOAgente.includes('Playbook'), false)
+  assertEquals(pedidos[0].justificativa.includes('Playbook'), false)
   const doisPassos = await sessao.chamar(RHETOR, 'propor_sequencia', {
     ...PROPOSTA,
-    playbook_vazio: true,
+    cadencia_padrao: true,
     passos: TRES_PASSOS.slice(0, 2),
   })
   assert(doisPassos.erro)
   assertStringIncludes(doisPassos.paraOAgente, 'proponha 3 passos de E-mail: no dia 0, 3 e 7')
   assertEquals(pedidos.length, 1)
+})
+
+Deno.test('a cadência pedida pelo usuário vale como veio: sem o padrão, a proposta não ganha aviso', async () => {
+  const { sessao, pedidos } = montar()
+  const r = await sessao.chamar(RHETOR, 'propor_sequencia', { ...PROPOSTA, passos: TRES_PASSOS.slice(0, 2) })
+  assert(!r.erro)
+  assertEquals(r.paraOAgente.includes('padrão'), false)
+  assertEquals(pedidos[0].justificativa.includes('cadência'), false)
 })
 
 Deno.test('as variáveis desconhecidas seguem a lista do envio', () => {

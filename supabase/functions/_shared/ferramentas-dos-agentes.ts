@@ -15,9 +15,6 @@
 //   buscar_sinais           (Scopus)             busca Sinais de um tipo do catálogo (os 8 ICPs do Mapa de Mercado) nas Contas do
 //                                                Workspace, pelo mesmo motor de cascata dos Monitoramentos, com teto de
 //                                                Créditos; sem o Sinal, lista o catálogo e os que não têm fonte;
-//   propor_mudanca_no_playbook (Scopus, Ethos)   propõe uma nova versão de uma seção do Playbook da Especialidade (CRM-09,
-//                                                ADR-0010): nasce uma Aprovação que só um Administrador decide, e o
-//                                                Playbook só muda quando ela é aprovada;
 //   propor_sequencia        (Rhetor)            propõe uma Sequência de E-mail para uma Conta-alvo (cadencia-pela-ia 01):
 //                                                nasce sempre uma Aprovação, mesmo com Executar, que só o Vendedor
 //                                                responsável decide; aprovada, a Sequência é criada sem envio, e nada sai
@@ -111,23 +108,6 @@ export interface ChamadaComEfeito {
   erro: string | null
 }
 
-/** O conteúdo de uma seção do Playbook, como o banco o guarda: o texto e as linhas da tabela (campo → texto). */
-export interface ConteudoDoPlaybook {
-  texto: string
-  linhas: Record<string, string>[]
-}
-
-/** A nova versão de uma seção que o Agente propôs (CRM-09), como `agent_propose_playbook_revision` devolve. */
-export interface RevisaoProposta {
-  approvalId: string
-  /** `pendente` (nasceu agora) ou `existente` (a mesma proposta já tinha sido feita nesta Execução). */
-  outcome: 'pendente' | 'existente' | string
-  /** O nome da seção no catálogo do Playbook. */
-  secao: string
-  /** A versão vigente de que a proposta partiu (0: a seção ainda não tinha versão). */
-  versaoBase: number
-}
-
 /** A Aderência que o Scopus propôs (kanban-de-prospeccao 08), como `agent_propose_account_fit` devolve. */
 export interface AderenciaProposta {
   approvalId: string
@@ -170,15 +150,6 @@ export interface BancoDasFerramentas {
    * pelos Agentes desta Execução. Devolve 'enviado' ou 'falhou'. Sem ele, `usar_conector` não aceita o efeito.
    */
   fecharEnvioPelaChamada?(runId: string, agenteId: string, a: ChamadaComEfeito): Promise<string>
-  /**
-   * RPC `agent_propose_playbook_revision` (CRM-09): a nova versão de uma seção do Playbook vira uma Aprovação da categoria
-   * revisão. Sem ela, `propor_mudanca_no_playbook` não é oferecida.
-   */
-  proporRevisao?(
-    runId: string,
-    agenteId: string,
-    a: { secao: string; conteudo: ConteudoDoPlaybook; justificativa: string },
-  ): Promise<RevisaoProposta>
   /**
    * RPC `agent_propose_sequence` (cadencia-pela-ia 01): a Sequência de E-mail proposta vira uma Aprovação da categoria
    * sequencia, que só o Vendedor responsável decide. Sem ela, `propor_sequencia` não é oferecida.
@@ -371,12 +342,6 @@ function motivoDoBanco(erro: unknown): string {
     if (m.includes('target account not found')) return 'Esta Conta-alvo não existe no Workspace (use o id que ler_contas_e_sinais devolve).'
     if (m.includes('ICP specialist')) return 'Só o Scopus pede busca de contas pelo ICP.'
     if (m.includes('tool is blocked')) return 'O Administrador bloqueou esta ferramenta neste Workspace. Não a use.'
-    if (m.includes('does not propose this playbook section')) return 'Você não propõe mudanças nesta seção do Playbook.'
-    if (m.includes('does not change the playbook section')) {
-      return 'O conteúdo proposto é igual à versão vigente da seção: nada mudaria. Diga isso ao usuário.'
-    }
-    if (m.includes('playbook content too long')) return 'O conteúdo passou do tamanho máximo de uma seção do Playbook.'
-    if (m.includes('unknown playbook section')) return 'Esta seção do Playbook não existe.'
     if (m.includes('active workspace membership required')) return 'Quem fez o pedido não participa mais do Workspace.'
     if (m.includes('invalid')) return 'A entrada da ferramenta é inválida.'
   }
@@ -461,7 +426,8 @@ const LER_CONTAS: FerramentaDoAgente = {
 const BUSCAR_PELO_ICP: FerramentaDoAgente = {
   nome: 'buscar_contas_pelo_icp',
   descricao:
-    'Pede uma busca de empresas que encaixam no ICP do Playbook. A busca NÃO roda na hora e não cria Conta-alvo: ela ' +
+    'Pede uma busca de empresas que encaixam no Perfil de cliente ideal do Contexto da empresa (um perfil por busca, ' +
+    'sem misturar primário e secundários). A busca NÃO roda na hora e não cria Conta-alvo: ela ' +
     'espera uma pessoa confirmar na Caixa de Descobertas, que mostra o custo em Créditos; as empresas achadas entram ' +
     'na Caixa como candidatas. Informe ao menos um setor ou uma palavra-chave (ou, na Receita, um CNAE de 7 dígitos).',
   esquema: {
@@ -496,7 +462,8 @@ const BUSCAR_PELO_ICP: FerramentaDoAgente = {
     if (!basta) {
       return falhou(
         `${agente.name} não conseguiu pedir a busca de contas pelo ICP`,
-        'Informe ao menos um setor ou uma palavra-chave (ou um CNAE de 7 dígitos, na Receita), tirados do ICP do Playbook.',
+        'Informe ao menos um setor ou uma palavra-chave (ou um CNAE de 7 dígitos, na Receita), tirados do Perfil de ' +
+          'cliente ideal do Contexto da empresa.',
       )
     }
     const maxResults = Number.isInteger(entrada.max_empresas) ? Math.min(Math.max(entrada.max_empresas as number, 1), 100) : 50
@@ -930,151 +897,6 @@ function avisoDoEnvio(enviado: boolean, crm: string): string {
     : 'A chamada saiu, mas a Althius não registrou o Envio ao CRM desta Conta (o pedido não é um Enviar ao CRM, ou ele já fechou). Diga isso ao usuário.'
 }
 
-/**
- * As seções do Playbook que cada Especialidade propõe: as dela em `playbook_specialty_sections`, só no Scopus e no Ethos
- * (ADR-0010; a Empresa não é de ninguém). O banco confere de novo. `colunas` são as da tabela da seção, as mesmas da tela
- * (`regras-playbook.ts`), para o Agente escrever as linhas nos campos que a tela mostra.
- */
-const SECOES_QUE_PROPOE: Record<string, readonly { id: string; nome: string; doNome: string; colunas?: readonly string[] }[]> = {
-  scopus: [
-    { id: 'icp', nome: 'ICP', doNome: 'do ICP' },
-    { id: 'mercado', nome: 'Mercado', doNome: 'do Mercado', colunas: ['segmento', 'tam', 'sam', 'som', 'complexidade'] },
-  ],
-  ethos: [
-    { id: 'personas', nome: 'Personas', doNome: 'das Personas', colunas: ['papel', 'cargo', 'dores', 'objecoes', 'gatilhos'] },
-    {
-      id: 'processo_de_compra',
-      nome: 'Processo de compra',
-      doNome: 'do Processo de compra',
-      colunas: ['etapa', 'quem_decide', 'criterio', 'prazo'],
-    },
-    {
-      id: 'dor_e_percepcao',
-      nome: 'Dor e percepção',
-      doNome: 'da Dor e percepção',
-      colunas: ['dor', 'urgencia', 'consciencia', 'gravidade', 'frequencia', 'pergunta'],
-    },
-    { id: 'objecoes', nome: 'Objeções', doNome: 'das Objeções', colunas: ['objecao', 'resposta', 'prova'] },
-  ],
-}
-
-const TETO_DO_CONTEUDO = 100_000
-const MAX_LINHAS = 200
-
-/** O conteúdo como o Agente o mandou, só com o que o Playbook guarda: texto e linhas de campos de texto. */
-function conteudoProposto(bruto: unknown): ConteudoDoPlaybook {
-  const objeto = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto as Record<string, unknown> : {}
-  const linhas = Array.isArray(objeto.linhas) ? objeto.linhas : []
-  return {
-    texto: typeof objeto.texto === 'string' ? objeto.texto.trim() : '',
-    linhas: linhas
-      .flatMap((linha) => {
-        if (!linha || typeof linha !== 'object' || Array.isArray(linha)) return []
-        const campos = Object.entries(linha as Record<string, unknown>)
-          .filter((par): par is [string, string] => typeof par[1] === 'string' && par[1].trim() !== '')
-          .map(([campo, valor]) => [campo.trim().slice(0, 60), valor.trim()])
-        return campos.length ? [Object.fromEntries(campos)] : []
-      })
-      .slice(0, MAX_LINHAS),
-  }
-}
-
-const PROPOR_MUDANCA_NO_PLAYBOOK: FerramentaDoAgente = {
-  nome: 'propor_mudanca_no_playbook',
-  descricao:
-    'Propõe uma nova versão de uma seção do Playbook da sua Especialidade, quando a Conversa chega a um ICP, a Personas, ' +
-    'a uma dor ou a uma objeção nova, ou quando pedem para ajustar o Playbook. Escreva a seção INTEIRA como deve ficar ' +
-    '(o texto e, se a seção tem tabela, todas as linhas), partindo da versão vigente que você recebeu no Playbook. Nada ' +
-    'muda na hora: nasce uma Aprovação que só um Administrador decide; aprovada, a versão nova vale para todos os Agentes.',
-  esquema: {
-    type: 'object',
-    properties: {
-      secao: {
-        type: 'string',
-        enum: Object.values(SECOES_QUE_PROPOE).flatMap((secoes) => secoes.map((s) => s.id)),
-        description: 'A seção do Playbook (só as da sua Especialidade).',
-      },
-      conteudo: {
-        type: 'object',
-        properties: {
-          texto: { type: 'string', description: 'O texto inteiro da seção.' },
-          linhas: {
-            type: 'array',
-            items: { type: 'object', additionalProperties: { type: 'string' } },
-            description: 'As linhas da tabela da seção, inteiras, nos campos indicados.',
-          },
-        },
-        additionalProperties: false,
-      },
-      justificativa: { type: 'string', description: 'Por que mudar, em uma ou duas frases, para o Administrador que decide.' },
-    },
-    required: ['secao', 'conteudo', 'justificativa'],
-    additionalProperties: false,
-  },
-  especialidades: ['scopus', 'ethos'],
-  exige: null,
-  disponivel: (_agente, _ctx, deps) => !!deps.banco.proporRevisao,
-  descricaoPara(agente) {
-    const linhas = (SECOES_QUE_PROPOE[agente.specialty] ?? []).map((s) =>
-      `- ${s.id} (${s.nome})${s.colunas ? `: linhas com os campos ${s.colunas.join(', ')}` : ': só texto'}`
-    )
-    return `${PROPOR_MUDANCA_NO_PLAYBOOK.descricao}\nSeções que você pode propor:\n${linhas.join('\n')}`
-  },
-  async executar({ runId, agente, entrada, deps }) {
-    const secoes = SECOES_QUE_PROPOE[agente.specialty] ?? []
-    const id = texto(entrada.secao, 40)
-    const secao = secoes.find((s) => s.id === id)
-    if (!secao || !deps.banco.proporRevisao) {
-      return falhou(
-        `${agente.name} tentou propor uma mudança no Playbook`,
-        `Você só propõe mudanças nestas seções do Playbook: ${secoes.map((s) => s.nome).join(', ') || 'nenhuma'}.`,
-      )
-    }
-    const conteudo = conteudoProposto(entrada.conteudo)
-    if (!conteudo.texto && conteudo.linhas.length === 0) {
-      return falhou(
-        `${agente.name} tentou propor uma nova versão ${secao.doNome}`,
-        'Escreva o conteúdo inteiro da seção: o texto e, se ela tem tabela, as linhas.',
-      )
-    }
-    if (JSON.stringify(conteudo).length > TETO_DO_CONTEUDO) {
-      return falhou(`${agente.name} tentou propor uma nova versão ${secao.doNome}`, 'O conteúdo é grande demais para uma seção.')
-    }
-    const justificativa = texto(entrada.justificativa, 2000)
-    if (!justificativa) {
-      return falhou(
-        `${agente.name} tentou propor uma nova versão ${secao.doNome}`,
-        'Diga em uma ou duas frases por que mudar a seção: é o que o Administrador lê para decidir.',
-      )
-    }
-    let proposta: RevisaoProposta
-    try {
-      proposta = await deps.banco.proporRevisao(runId, agente.id, { secao: secao.id, conteudo, justificativa })
-    } catch (erro) {
-      return falhou(`${agente.name} tentou propor uma nova versão ${secao.doNome}`, `A proposta falhou. ${motivoDoBanco(erro)}`)
-    }
-    const link: LinkDoPasso = { tipo: 'aprovacao', id: proposta.approvalId }
-    if (proposta.outcome === 'existente') {
-      return {
-        erro: false,
-        paraOAgente: `Esta mesma proposta ${secao.doNome} já existe nesta Conversa. Nada novo foi criado.`,
-        passo: { descricao: `${agente.name} lembrou a proposta ${secao.doNome} que já está em Aprovações`, estado: 'aguardando', link },
-      }
-    }
-    return {
-      erro: false,
-      paraOAgente:
-        `Proposta criada: a nova versão ${secao.doNome} espera a decisão de um Administrador, aqui na Conversa ou em ` +
-        'Aprovações. O Playbook não mudou ainda. Termine dizendo que a mudança só vale depois da Aprovação.',
-      passo: {
-        descricao: `${agente.name} propôs uma nova versão ${secao.doNome} — aguardando Aprovação de um Administrador`,
-        estado: 'aguardando',
-        link,
-      },
-    }
-  },
-}
-
 /** As variáveis que o envio preenche (`private.step_variable_value`, PR #227). O Sinal e a Persona não são variáveis. */
 export const VARIAVEIS_DO_ENVIO =
   '{{primeiro_nome}}, {{nome}}, {{sobrenome}}, {{cargo}}, {{email}}, {{empresa}}, {{segmento}}, {{dominio}} e ' +
@@ -1082,7 +904,7 @@ export const VARIAVEIS_DO_ENVIO =
 
 const MAX_PASSOS_DA_SEQUENCIA = 8
 const MAX_CONTATOS_DA_SEQUENCIA = 5
-/** O padrão sem a seção Cadência do Playbook: 3 E-mails, no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias). */
+/** O padrão quando nem o pedido nem um template definem a cadência: 3 E-mails, no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias). */
 const ESPERAS_DO_PADRAO = [0, 3, 4]
 const VARIAVEL = /\{\{\s*([A-Za-z_.]+)\s*\}\}/g
 const CONHECIDAS = new Set([
@@ -1104,10 +926,13 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     'passo anterior, o assunto e o corpo. Use quando pedirem uma Sequência ou uma Cadência para uma Conta-alvo, com ou ' +
     'sem Sinal. Antes, leia a Conta e, quando houver, o Sinal com ler_contas_e_sinais e chame esta ferramenta sem contatos para ' +
     'ver os Contatos da Conta (com o id e se cada um pode entrar). Use o Sinal no primeiro e-mail, quando houver; sem Sinal, ' +
-    'use a Conta enriquecida (setor, porte, Receita/CNPJ, Comitê e Contatos), o ICP e o Playbook (Cadência, dores e ' +
-    'proposta de valor); escreva sempre com as suas palavras. Siga a seção Cadência do Playbook (número de passos, esperas e tom); se ela estiver vazia, ' +
-    'proponha 3 passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe playbook_vazio e diga ao usuário que o ' +
-    `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
+    'use a Conta enriquecida (setor, porte, Receita/CNPJ, Comitê e Contatos). Escreva a partir do Contexto da empresa: ' +
+    'a Empresa (oferta, problemas resolvidos e diferenciais), as Personas (dores, objetivos e papel na compra) e o Perfil ' +
+    'de cliente ideal (por que a Conta encaixa); escreva sempre com as suas palavras. A cadência (número de passos, ' +
+    'esperas e tom) é a que o usuário pediu na Conversa ou a do template escolhido; se nenhum a definir, proponha 3 ' +
+    'passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe cadencia_padrao e diga ao usuário que a proposta ' +
+    'seguiu o padrão. O Contexto da empresa não traz cadência, scripts nem SLA: não invente prazos, preços, clientes ' +
+    `ou resultados. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
     'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
     'que ele clicar em "Ativar envios". Para partir de um template da Althius, chame sugerir_template_de_sequencia ' +
     'antes e use só o id que ela devolver. Para um template próprio do vendedor, chame sugerir_template_proprio: ' +
@@ -1141,7 +966,10 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
         type: 'string',
         description: 'Por que esta Sequência para esta Conta: o Sinal, se houver, ou o encaixe com o ICP e o Comitê. Todos os membros leem: não copie o assunto nem o corpo.',
       },
-      playbook_vazio: { type: 'boolean', description: 'true quando a seção Cadência do Playbook está vazia.' },
+      cadencia_padrao: {
+        type: 'boolean',
+        description: 'true quando nem o usuário nem um template definiram a cadência, e a proposta segue o padrão.',
+      },
     },
     required: ['conta_id'],
     additionalProperties: false,
@@ -1204,13 +1032,15 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
       }
       passos.push({ esperaEmDias: espera as number, assunto, corpo })
     }
-    const playbookVazio = entrada.playbook_vazio === true
-    if (playbookVazio && passos.map((p) => p.esperaEmDias).join() !== ESPERAS_DO_PADRAO.join()) {
-      return recusar('Sem a seção Cadência no Playbook, proponha 3 passos de E-mail: no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias).')
+    const cadenciaPadrao = entrada.cadencia_padrao === true
+    if (cadenciaPadrao && passos.map((p) => p.esperaEmDias).join() !== ESPERAS_DO_PADRAO.join()) {
+      return recusar('Sem cadência definida, proponha 3 passos de E-mail: no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias).')
     }
     const justificativa = [
       texto(entrada.justificativa, 1800),
-      playbookVazio ? 'O Playbook não tem a seção Cadência: a proposta segue o padrão de 3 e-mails (dia 0, 3 e 7).' : '',
+      cadenciaPadrao
+        ? 'Nenhuma cadência foi definida para esta Sequência: a proposta segue o padrão de 3 e-mails (dia 0, 3 e 7).'
+        : '',
     ].filter(Boolean).join(' ')
 
     let proposta: SequenciaProposta
@@ -1228,8 +1058,8 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
         passo: { descricao: `${agente.name} lembrou a Sequência proposta para a ${proposta.conta}`, estado: 'aguardando', link },
       }
     }
-    const aviso = playbookVazio
-      ? ' Diga também que a seção Cadência do Playbook está vazia e que a proposta seguiu o padrão de 3 e-mails (dia 0, 3 e 7).'
+    const aviso = cadenciaPadrao
+      ? ' Diga também que nenhuma cadência foi definida e que a proposta seguiu o padrão de 3 e-mails (dia 0, 3 e 7).'
       : ''
     return {
       erro: false,
@@ -1250,7 +1080,8 @@ const PROPOR_ADERENCIA: FerramentaDoAgente = {
   nome: 'propor_aderencia',
   descricao:
     'Propõe a Aderência de uma Conta-alvo ao ICP: fit ou nao_fit, com o motivo em uma frase (obrigatório para nao_fit). ' +
-    'Use o id que ler_contas_e_sinais devolve. Avalie pelo ICP do Playbook (setor, porte, região, modelo de venda); um ' +
+    'Use o id que ler_contas_e_sinais devolve. Avalie pelo Perfil de cliente ideal do Contexto da empresa (setor, ' +
+    'porte, região, modelo de venda), sem misturar perfis; um ' +
     'Sinal sozinho torna a Conta Quente, mas não decide o encaixe. Sem informação para decidir, não proponha: diga o que ' +
     'falta. Nada é gravado agora: nasce uma Aprovação que só o Vendedor responsável pela Conta decide; aprovada, Fit leva ' +
     'o cartão a Fit (se ele ainda não passou de lá) e Não fit leva a Descartada.',
@@ -1316,7 +1147,7 @@ const SUGERIR_TEMPLATE: FerramentaDoAgente = {
   descricao:
     'Sugere um template da Althius para uma Conta-alvo. Chame antes de propor os e-mails, com o id da Conta que ' +
     'ler_contas_e_sinais devolve. A ferramenta escolhe só um template que já existe e está acessível, e justifica com ' +
-    'o Sinal quando houver, ou o contexto enriquecido da Conta, ICP e Playbook. Se não houver contexto ou crédito, ela não escolhe: diga ao usuário para escolher ' +
+    'o Sinal quando houver, ou o contexto enriquecido da Conta e o Contexto da empresa. Se não houver contexto ou crédito, ela não escolhe: diga ao usuário para escolher ' +
     'manualmente ou criar do zero. Não invente template, adequação ou eficácia (não diga que aumenta resposta, ' +
     'conversão ou que está comprovado). Não cria Sequência e não ativa envio. Ajustes de mensagem continuam em ' +
     'propor_sequencia; a Aprovação dessa proposta não ativa envios.',
@@ -1584,14 +1415,13 @@ const BUSCAR_SINAIS: FerramentaDoAgente = {
 export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_ICP, CONSULTAR_INTEGRACAO, PROPOR_ENVIO]
 
 /**
- * O catálogo com a ferramenta genérica dos conectores (ADR-0022) e a proposta de mudança no Playbook (CRM-09). Elas ficam
+ * O catálogo com a ferramenta genérica dos conectores (ADR-0022) e as propostas de Sequência e Aderência. Elas ficam
  * à parte do `CATALOGO` das ferramentas da Etapa 5b porque dependem de contratos novos do banco (as regras, a proposta de
  * chamada, a proposta de revisão): quem não os tem continua vendo só as quatro de antes.
  */
 export const FERRAMENTAS: readonly FerramentaDoAgente[] = [
   ...CATALOGO,
   USAR_CONECTOR,
-  PROPOR_MUDANCA_NO_PLAYBOOK,
   BUSCAR_SINAIS,
   PROPOR_SEQUENCIA,
   SUGERIR_TEMPLATE,
@@ -1783,24 +1613,6 @@ export function bancoDasFerramentas(
         p_ok: a.ok,
         p_error: a.erro,
       }),
-    // Migration 20261009220509 (CRM-09).
-    async proporRevisao(runId, agenteId, a) {
-      const linha = primeira<{ approval_id: string; outcome: string; section_name: string; base_version: number | string }>(
-        await chamar('agent_propose_playbook_revision', {
-          p_run_id: runId,
-          p_agent_id: agenteId,
-          p_section: a.secao,
-          p_content: a.conteudo,
-          p_justification: a.justificativa,
-        }),
-      )
-      return {
-        approvalId: linha.approval_id,
-        outcome: linha.outcome,
-        secao: linha.section_name,
-        versaoBase: Number(linha.base_version ?? 0),
-      }
-    },
     // Migration 20261105100000 (cadencia-pela-ia 01).
     async proporSequencia(runId, agenteId, a) {
       const linha = primeira<{ approval_id: string; outcome: string; account_name: string }>(

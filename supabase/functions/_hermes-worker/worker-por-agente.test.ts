@@ -177,7 +177,7 @@ Deno.test('por Agente: escolha que não é JSON, etapa sem trabalho e Hermes for
   }
 })
 
-Deno.test('por Agente: o Hermes recebe o Playbook da Especialidade de cada Agente nas instruções dele', async () => {
+Deno.test('por Agente: cada Agente recebe o Contexto da empresa vigente, lido uma vez, com o foco do seu papel', async () => {
   const lidos: string[] = []
   const eventos: string[] = []
   const db: FilaDb = {
@@ -186,16 +186,9 @@ Deno.test('por Agente: o Hermes recebe o Playbook da Especialidade de cada Agent
     append: (_r, kind) => (eventos.push(kind), Promise.resolve(eventos.length)),
     finish: () => Promise.resolve(),
     searchAccounts: () => Promise.resolve([ALFA]),
-    playbook: (_r, specialty) => (
-      lidos.push(specialty),
-      Promise.resolve(
-        specialty === 'scopus'
-          ? [
-            { section: 'empresa', name: 'Empresa', content: { texto: 'A Norte vende software.' } },
-            { section: 'icp', name: 'ICP', content: { texto: 'Incorporadoras de médio porte.' } },
-          ]
-          : [],
-      )
+    contextoDaEmpresa: (runId) => (
+      lidos.push(runId),
+      Promise.resolve({ version: 4, empresa: 'A Norte vende software.', icp: 'Incorporadoras de médio porte.', personas: '' })
     ),
   }
   const corpos: CorpoDoRun[] = []
@@ -207,12 +200,16 @@ Deno.test('por Agente: o Hermes recebe o Playbook da Especialidade de cada Agent
   }
   await createWorker({ db, hermes, log: () => {}, porAgente: true }).rodada()
 
-  assertEquals(lidos, ['scopus', 'ethos'])
+  assertEquals(lidos, ['r1'])
   const doScopus = corpos.find((c) => c.instructions.includes('Você é Scopus'))!
-  assertStringIncludes(doScopus.instructions, '### ICP\nIncorporadoras de médio porte.')
-  assertStringIncludes(doScopus.instructions, '(Playbook, seção ICP)')
+  assertStringIncludes(doScopus.instructions, 'Contexto da empresa (versão 4)')
+  assertStringIncludes(doScopus.instructions, '### Perfil de cliente ideal\nIncorporadoras de médio porte.')
+  assertStringIncludes(doScopus.instructions, 'Para o seu papel (Scopus)')
   const doEthos = corpos.find((c) => c.instructions.includes('Você é Ethos'))!
-  assertStringIncludes(doEthos.instructions, 'ainda não tem a seção Empresa')
+  assertStringIncludes(doEthos.instructions, '### Empresa\nA Norte vende software.')
+  assertStringIncludes(doEthos.instructions, 'Para o seu papel (Ethos)')
+  assertStringIncludes(doEthos.instructions, 'ainda não tem: Personas')
+  assertEquals(doScopus.instructions.includes('Playbook'), false)
 })
 
 Deno.test('por Agente: o custo da Execução é registrado depois de fechá-la, no sucesso e na falha', async () => {

@@ -26,7 +26,7 @@ import {
   fecharComFalha,
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
-  leitorDoPlaybook,
+  leitorDoContexto,
   lerAnexos,
   reservaComAnexos,
   registrarCustoDaExecucao,
@@ -109,20 +109,20 @@ const REGRAS_COM_FERRAMENTAS = [
   'Responda em português do Brasil, direto e sem enrolação.',
   'Nunca invente dados, números, nomes ou fatos. Se não souber, ou se a ferramenta não trouxer, diga que não sabe.',
   'Os dados do Workspace e das Integrações só chegam pelas ferramentas que você recebeu. Use-as para agir: ler as ' +
-  'Contas-alvo e os Sinais, consultar o CRM, pedir buscas, propor envios e propor mudanças no Playbook. Você não age ' +
+  'Contas-alvo e os Sinais, consultar o CRM, pedir buscas e propor envios. Você não age ' +
   'fora delas. Uma ação ou mudança que precisa de Aprovação só vale depois que um Administrador aprovar (uma Sequência ' +
   'proposta, depois que o Vendedor responsável aprovar e clicar em "Ativar envios"): diga isso, sem ' +
   'fingir que já foi feita. Diga em ' +
   'uma frase o que você fez com cada ferramenta.',
 ].join('\n')
 
-function systemDoAgente(agente: AgenteDoWorkspace, workspace: string, playbook = '', comFerramentas = false): string {
+function systemDoAgente(agente: AgenteDoWorkspace, workspace: string, contexto = '', comFerramentas = false): string {
   return [
     `Você é ${agente.name}, um Agente da Althius no Workspace "${workspace}".`,
     ESPECIALIDADES[agente.specialty] ?? '',
     agente.instructions ? `Instruções do Workspace para você:\n${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
-    playbook,
+    contexto,
     comFerramentas ? REGRAS_COM_FERRAMENTAS : REGRAS,
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
@@ -203,7 +203,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     reserva: Reserva,
     agente: AgenteDoWorkspace,
     contribuicoes: string[],
-    playbook = '',
+    contexto = '',
     sessao: SessaoDeFerramentas | null = null,
     imagens: AnexoDaExecucao[] = [],
   ): Promise<ResultadoDoAgente> {
@@ -236,7 +236,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const resposta = await modelo.criar({
         max_tokens: MAX_TOKENS,
-        system: systemDoAgente(agente, reserva.workspace_name, playbook, !!sessao),
+        system: systemDoAgente(agente, reserva.workspace_name, contexto, !!sessao),
         tools: [BUSCAR_CONTAS, ...ferramentasDoModelo(sessao, agente)],
         messages: mensagens,
         output_config: { effort: 'medium' },
@@ -390,11 +390,11 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     sessao: SessaoDeFerramentas | null,
     imagens: AnexoDaExecucao[] = [],
   ): Executor {
-    const playbookDe = leitorDoPlaybook(db, reserva.run_id, log, 'agent_run')
+    const contextoDe = leitorDoContexto(db, reserva.run_id, log, 'agent_run')
     return {
       escolher: () => escolher(modelo, reserva),
       trabalhar: async (agente, falas) =>
-        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty), sessao, imagens),
+        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await contextoDe(agente.specialty), sessao, imagens),
       sintetizar: (falas) => sintetizar(modelo, reserva, contribuicoesDe(falas)),
     }
   }

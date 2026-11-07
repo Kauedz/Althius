@@ -29,7 +29,7 @@ import {
   fecharComFalha,
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
-  leitorDoPlaybook,
+  leitorDoContexto,
   MAX_PARTICIPANTES_DA_CONVERSA,
   registrador,
   registrarCustoDaExecucao,
@@ -168,8 +168,8 @@ function contasDoWorkspace(contas: ContaEncontrada[]): string {
 const REGRAS_COM_FERRAMENTAS =
   'Regras: responda em português do Brasil, direto. Nunca invente dados, números, nomes ou fatos: use só o que está ' +
   'aqui, na conversa ou no resultado das ferramentas, e diga "não sei" quando faltar. Você só age pelas ferramentas da ' +
-  'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação ou uma mudança ' +
-  'no Playbook que precisa de Aprovação só vale depois que um Administrador aprovar (uma Sequência proposta, depois que ' +
+  'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação que precisa ' +
+  'de Aprovação só vale depois que um Administrador aprovar (uma Sequência proposta, depois que ' +
   'o Vendedor responsável aprovar e clicar em "Ativar envios"): diga isso, sem fingir que já foi feita.'
 
 /** Os outros Agentes do Workspace, que o Agente pode chamar escrevendo "@Nome" na resposta (PR-11). */
@@ -186,7 +186,7 @@ export function instrucoesDoAgente(
   reserva: Reserva,
   agente: AgenteDoWorkspace,
   contas: ContaEncontrada[],
-  playbook = '',
+  contexto = '',
   ferramentas = '',
 ): string {
   return [
@@ -195,7 +195,7 @@ export function instrucoesDoAgente(
     ESPECIALIDADES[agente.specialty] ?? '',
     agente.instructions ? `Instruções do Workspace para você: ${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
-    playbook,
+    contexto,
     contasDoWorkspace(contas),
     ferramentas ? REGRAS_COM_FERRAMENTAS : REGRAS_DO_HERMES,
     REGRA_DE_MARCA,
@@ -401,7 +401,7 @@ export function createWorker(deps: WorkerDeps) {
   function executorDoHermes(reserva: Reserva, contas: ContaEncontrada[], sessao: SessaoDeFerramentas | null = null): Executor {
     const runId = reserva.run_id
     const historico = historicoDaConversa(reserva)
-    const playbookDe = leitorDoPlaybook(db, runId, log, 'hermes_worker')
+    const contextoDe = leitorDoContexto(db, runId, log, 'hermes_worker')
     return {
       async escolher() {
         const { texto, uso } = await passo(`althius-${runId}-escolha`, {
@@ -419,7 +419,7 @@ export function createWorker(deps: WorkerDeps) {
           sessao ? textoDoMural(sessao.mural()) : '',
         ].filter(Boolean).join('\n\n')
         const ferramentas = sessao ? instrucoesDasFerramentas(sessao.paraOAgente(agente)) : ''
-        const instructions = instrucoesDoAgente(reserva, agente, contas, await playbookDe(agente.specialty), ferramentas)
+        const instructions = instrucoesDoAgente(reserva, agente, contas, await contextoDe(agente.specialty), ferramentas)
         const chave = `althius-${runId}-${agente.id}-r${rodada}`
         if (!ferramentas || !sessao) return passo(chave, { input, instructions, conversation_history: historico })
         // A ponte das ferramentas: cada pedido em JSON é executado aqui, e o resultado volta na próxima chamada. O uso
