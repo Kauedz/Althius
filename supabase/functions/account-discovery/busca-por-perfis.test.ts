@@ -122,6 +122,14 @@ Deno.test('search por perfis: a empresa que aparece em dois recortes é gravada 
   assertEquals(encerramentos.map((e) => e.success), [true])
 })
 
+Deno.test('search por perfis: o pendente diz o que exige coleta na qualificação, sem prometer o dado', async () => {
+  const { buscar, gravadas } = montar()
+  await buscar({ perfis: PERFIS, contextoVersao: 7 })
+  const beta = gravadas[0].find((c) => c.name === 'Beta Seguros')!
+  const pendente = beta.reasons.find((m) => m.criterio === 'pendente')!
+  assertEquals(pendente.texto, 'A verificar na qualificação: Faturamento acima de R$ 10 mi (a fonte não traz esse dado).')
+})
+
 Deno.test('search por perfis: filtros de uma versão antiga do contexto não rodam', async () => {
   const { buscar, inicios, chamadas } = montar({ versaoAtual: 8 })
   const { status, corpo } = await buscar({ perfis: PERFIS, contextoVersao: 7 })

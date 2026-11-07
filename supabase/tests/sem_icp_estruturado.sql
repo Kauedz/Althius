@@ -55,10 +55,11 @@ select is((select array_agg(name || ':' || fit_level order by name)::text
   '{"Mercado alto:sem_dado","Mercado baixo:sem_dado"}', 'as empresas achadas por Sinal de mercado ficam sem dado');
 select isnt((select fit_level from public.list_discovered_accounts('e0320000-0000-0000-0000-000000000010') where name = 'Da busca'),
   'sem_dado', 'a empresa da Busca continua com a Aderência dela');
-select is(public.get_discovered_account_fit_explanation('e0320000-0000-0000-0000-0000000000a3') -> 'icp',
-  '{"oQueVende": "Software financeiro"}'::jsonb, 'a explicação da Aderência leva o que vende do Day0 como ICP');
-select is(public.get_discovered_account_fit_explanation('e0320000-0000-0000-0000-0000000000a4') -> 'icp',
-  'null'::jsonb, 'sem mini-ICP no Day0, o ICP da explicação vem nulo');
+-- contexto-da-empresa 05: a explicação deixou de levar o ICP do Day0; usa só o contexto gravado na busca.
+select ok(not (public.get_discovered_account_fit_explanation('e0320000-0000-0000-0000-0000000000a3') ? 'icp'),
+  'a explicação da Aderência não leva mais o que vende do Day0 como ICP');
+select is(public.get_discovered_account_fit_explanation('e0320000-0000-0000-0000-0000000000a4') -> 'contexto',
+  'null'::jsonb, 'Descoberta sem busca pelo contexto: a explicação vem sem contexto');
 reset role;
 
 select * from finish();

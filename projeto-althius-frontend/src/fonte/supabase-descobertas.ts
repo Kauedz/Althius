@@ -1,4 +1,5 @@
 import { explicarAderencia, type ExplicacaoDeAderencia } from './aderencia-explicada'
+import { aderenciaPelosCriterios } from './aderencia-pelos-criterios'
 import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -194,6 +195,7 @@ export function criarFonteDeDescobertasSupabase(
         tags: Array.isArray(d.tags) ? d.tags : [],
         fitLevel: (d.fit_level ?? 'baixo') as NivelDeEncaixe,
         motivos: textosDosMotivos(d.reasons),
+        aderencia: aderenciaPelosCriterios(d.reasons),
         sinais: Array.isArray(d.signals) ? (d.signals as SinalDaCandidata[]) : [],
         origem: (['busca', 'sinal', 'sincronizacao'].includes(d.origin) ? d.origin : 'busca') as OrigemDaDescoberta,
         motivosDeSinal: Array.isArray(d.signal_reasons)

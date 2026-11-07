@@ -653,6 +653,15 @@ function recorteDoPedido(bruto: unknown, indice: number): Recorte {
   }
 }
 
+/** O que falta para conferir cada pendência na qualificação, sem prometer um dado que a fonte não tem. */
+const O_QUE_FALTA: Record<MotivoDaPendencia, string> = {
+  sem_suporte_na_fonte: 'a fonte não traz esse dado',
+  ambiguo: 'o texto não define um valor',
+  faixa_aproximada: 'a fonte só filtra por faixa',
+  local_desconhecido: 'local não reconhecido pela fonte',
+  valor_invalido: 'valor não aceito pela fonte',
+}
+
 /** Quem é a mesma empresa: o LinkedIn, o CNPJ, o site ou, sem nada disso, o nome. */
 function chaveDaEmpresa(c: CandidataBruta): string {
   if (c.linkedinUrl) return `li:${c.linkedinUrl.toLowerCase().replace(/\/+$/, '')}`
@@ -687,7 +696,11 @@ function juntarRepetidas(
       extras.push({ criterio: 'perfil', atende: null, texto: `${nomes.length > 1 ? 'Perfis' : 'Perfil'}: ${nomes.join(', ')}.` })
     }
     for (const p of recortes[melhor.recorte].pendentes) {
-      extras.push({ criterio: 'pendente', atende: null, texto: `A verificar: ${NOMES_DOS_CONCEITOS[p.conceito]} ${p.valor} (a fonte não aplicou).` })
+      extras.push({
+        criterio: 'pendente',
+        atende: null,
+        texto: `A verificar na qualificação: ${NOMES_DOS_CONCEITOS[p.conceito]} ${p.valor} (${O_QUE_FALTA[p.motivo]}).`,
+      })
     }
     return { candidata: melhor.candidata, avaliacao: { ...melhor.avaliacao, reasons: [...melhor.avaliacao.reasons, ...extras] } }
   })

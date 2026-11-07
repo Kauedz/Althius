@@ -14,6 +14,25 @@ describe('explicarAderencia', () => {
     expect(invoke).toHaveBeenCalledWith('account-fit-explanation', { body: { discoveredAccountId: 'd1' } })
   })
 
+  it('traz a situação, os critérios em grupos e o contexto que a busca usou', async () => {
+    const criterios = { atendidos: ['Setor: atua em Seguros.'], naoAtendidos: [], semDado: ['Região: a fonte não informou.'], aVerificar: ['Faturamento: conferir na qualificação.'] }
+    const { cliente: c } = cliente({
+      data: {
+        explicacao: 'Aderência não confirmada.', origem: 'regra', nivel: 'alto', pontuacao: 100, situacao: 'nao_confirmada', criterios,
+        contexto: { versao: 4, perfis: ['Corretoras'], trechos: ['corretoras de seguros'] },
+      },
+    })
+    await expect(explicarAderencia(c, 'd1')).resolves.toEqual({
+      explicacao: 'Aderência não confirmada.', origem: 'regra', nivel: 'alto', situacao: 'nao_confirmada', criterios,
+      contexto: { versao: 4, perfis: ['Corretoras'], trechos: ['corretoras de seguros'] },
+    })
+  })
+
+  it('situação desconhecida e contexto sem versão ficam de fora', async () => {
+    const { cliente: c } = cliente({ data: { explicacao: 'Texto qualquer.', origem: 'regra', nivel: null, situacao: 'otima', contexto: { versao: 'x' } } })
+    await expect(explicarAderencia(c, 'd1')).resolves.toEqual({ explicacao: 'Texto qualquer.', origem: 'regra', nivel: null })
+  })
+
   it('traduz 404 e erros desconhecidos sem mostrar o erro cru', async () => {
     await expect(explicarAderencia(cliente({ error: { context: { status: 404 } } }).cliente, 'd1')).rejects.toThrow('Descoberta não encontrada.')
     await expect(explicarAderencia(cliente({ error: { message: 'boom 500 stack' } }).cliente, 'd1')).rejects.toThrow('Não deu para explicar a Aderência agora. Tente de novo.')

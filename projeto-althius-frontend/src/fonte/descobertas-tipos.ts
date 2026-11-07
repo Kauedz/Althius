@@ -1,3 +1,4 @@
+import type { AderenciaPelosCriterios } from './aderencia-pelos-criterios'
 import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte } from './aprendizado-da-descoberta'
 import type { FonteObservavel } from './tipos'
@@ -146,6 +147,8 @@ export interface ContaDescoberta {
   tags: string[]
   fitLevel: NivelDeEncaixe
   motivos: string[]
+  /** A Aderência pelos critérios que a busca avaliou; ausente quando os motivos não dizem o critério. */
+  aderencia?: AderenciaPelosCriterios
   sinais: SinalDaCandidata[]
   origem: OrigemDaDescoberta
   /** Os Sinais reais que a trouxeram, do mais recente ao mais antigo. */

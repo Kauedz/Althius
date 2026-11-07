@@ -49,6 +49,25 @@ const ROTULO_DO_ENCAIXE: Record<ContaDescoberta['fitLevel'], string> = {
   sem_dado: 'Encaixe sem dado',
 }
 
+/**
+ * O selo de encaixe da linha. A nota (com Sinais) ordena a lista, mas Sinais não confirmam o encaixe: com algum critério
+ * do perfil sem dado ou a verificar e nada contra, o selo diz "não confirmado", no mesmo tom do "sem dado"; com um
+ * critério verificado que não bate, o selo não passa de médio.
+ */
+function seloDoEncaixe(c: ContaDescoberta): { rotulo: string; nivel: ContaDescoberta['fitLevel']; titulo?: string } {
+  if (c.aderencia?.situacao === 'nao_confirmada') {
+    return {
+      rotulo: 'Encaixe não confirmado',
+      nivel: 'sem_dado',
+      titulo: 'Aderência não confirmada: há critério do perfil sem dado ou a verificar na qualificação.',
+    }
+  }
+  if (c.aderencia?.situacao === 'nao_atende' && c.fitLevel === 'alto') {
+    return { rotulo: ROTULO_DO_ENCAIXE.medio, nivel: 'medio', titulo: 'Um critério do perfil não bate; Sinais de compra não confirmam o encaixe.' }
+  }
+  return { rotulo: ROTULO_DO_ENCAIXE[c.fitLevel] ?? ROTULO_DO_ENCAIXE.baixo, nivel: c.fitLevel }
+}
+
 /** O dia e o mês de um Sinal, como a pessoa escreve ("12/10"), no fuso de Brasília. */
 function diaEMes(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
@@ -96,6 +115,14 @@ function DetalheDaCandidata({
         {candidata.cnpj && <span>CNPJ: {candidata.cnpj}</span>}
         {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
       </div>
+      {candidata.aderencia && candidata.aderencia.aVerificar.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-al-ink">A verificar na qualificação</span>
+          <ul aria-label="A verificar na qualificação" className="flex list-disc flex-col gap-0.5 pl-4 text-al-muted">
+            {candidata.aderencia.aVerificar.map((texto) => <li key={texto}>{texto}</li>)}
+          </ul>
+        </div>
+      )}
       {explicar && <PorQueEssaAderencia key={candidata.id} explicar={() => explicar(candidata.id)} />}
       {aprendido && <p className="text-al-muted">{fraseDoAjuste(aprendido)}.</p>}
       {candidata.voltouPorSinalEm && (
@@ -566,6 +593,7 @@ export function PaginaDescobertas() {
               {listaFiltrada.map((c) => {
                 const sinaisValidos = c.motivosDeSinal.filter((m) => m.valido).length || c.sinais.length
                 const ultimoSinal = c.motivosDeSinal[0]
+                const selo = seloDoEncaixe(c)
                 const local = c.localizacao || c.uf || '—'
                 return (
                 <Fragment key={c.id}>
@@ -625,14 +653,15 @@ export function PaginaDescobertas() {
 
                   <td className={CELULA}>
                     <span
+                      title={selo.titulo}
                       className={cn(
                         'inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium',
-                        c.fitLevel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
-                        c.fitLevel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
-                        (c.fitLevel === 'baixo' || c.fitLevel === 'sem_dado') && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
+                        selo.nivel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
+                        selo.nivel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
+                        (selo.nivel === 'baixo' || selo.nivel === 'sem_dado') && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
                       )}
                     >
-                      {ROTULO_DO_ENCAIXE[c.fitLevel] ?? ROTULO_DO_ENCAIXE.baixo}
+                      {selo.rotulo}
                     </span>
                   </td>
 

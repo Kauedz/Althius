@@ -90,7 +90,8 @@ function avaliarSetor(c: CandidataBruta, criterios: CriteriosDeBusca): Motivo | 
       : { criterio: 'setor', atende: null, texto: 'Setor: a fonte não informou a atividade da empresa.' }
   }
   const setor = setorBate(atividade, termosSetor)
-  if (setor) return { criterio: 'setor', atende: true, texto: `Setor: combina com "${setor}".` }
+  // A evidência vai junto: o setor que a fonte declarou e o termo do perfil com que ele combina.
+  if (setor) return { criterio: 'setor', atende: true, texto: `Setor: atua em ${c.sector ?? c.cnae}, que combina com "${setor}".` }
   const citado = primeiroQueBate(junta(c.name, c.description, c.tags), termosSetor) ?? palavra
   return citado
     ? { criterio: 'setor', atende: false, texto: `Setor: atua em ${c.sector ?? c.cnae}; só o nome ou a descrição cita "${citado}".` }
