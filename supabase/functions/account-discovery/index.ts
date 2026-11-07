@@ -1,9 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { type ClienteRpc, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { createHandler, type Db, ErroDoBanco, type IcpLido } from './handler.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
 import { normalizarCriterios } from './criterios.ts'
+import { LIMITES_DA_PREPARACAO } from './preparacao.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -45,6 +47,15 @@ const db: Db = {
     const secao = data as { version?: number | null; content?: { texto?: unknown; linhas?: unknown } | null } | null
     if (!secao?.content) return null
     return { version: secao.version ?? null, conteudo: secao.content }
+  },
+  async lerContexto({ workspaceId, authorization, apikey }) {
+    // O contexto vigente com a sessão de quem pede: get_company_context confere a Participação ativa.
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('get_company_context', {
+      p_workspace_id: workspaceId,
+    })
+    if (error) throw falha(error)
+    const contexto = (data ?? {}) as { version?: number | null; icp?: string | null }
+    return { versao: contexto.version ?? null, icp: contexto.icp ?? '' }
   },
   async actoresDeBusca() {
     const { data, error } = await admin.rpc('discovery_actors_for', { p_purpose: 'buscar_contas' })
@@ -115,6 +126,13 @@ const db: Db = {
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a busca terminar.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (trabalho: Promise<unknown>) => void } }).EdgeRuntime
 
+// A IA que lê o Perfil de cliente ideal: o mesmo motor da geração do contexto; nenhum segredo ou fornecedor novo.
+const llm = escolherLlmDosSinais({
+  env: (nome) => (nome === 'SIGNALS_LLM_TIMEOUT_MS' ? String(LIMITES_DA_PREPARACAO.esperaDoMotorMs) : Deno.env.get(nome)),
+  admin: admin as unknown as ClienteRpc,
+  log: (campos) => console.log(JSON.stringify(campos)),
+})
+
 const contas = contasDeColeta((nome) => Deno.env.get(nome))
 Deno.serve(createHandler({
   db,
@@ -128,6 +146,7 @@ Deno.serve(createHandler({
     esperaDoCustoMs: 3_000,
     releiturasDoCusto: 2,
   }),
+  llm,
   appOrigin: APP_ORIGIN,
   waitUntil: runtime?.waitUntil ? (trabalho) => runtime.waitUntil!(trabalho) : (trabalho) => void trabalho,
 }))

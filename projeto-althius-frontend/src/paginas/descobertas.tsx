@@ -9,7 +9,16 @@ import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
-import type { ContaDescoberta, CriteriosDaBusca, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
+import {
+  ErroDaBuscaDeContas,
+  type ContaDescoberta,
+  type CriteriosDaBusca,
+  type EstadoContaDescoberta,
+  type OrigemDaDescoberta,
+  type PreparacaoDaBusca,
+  type ResultadoDoAceite,
+  type SinalDoMotivo,
+} from '@/fonte/descobertas-tipos'
 import { formatarDataCompleta } from '@/fonte/formatar-data'
 import {
   ajustesDaCandidata,
@@ -24,6 +33,7 @@ import { SelecaoMultipla } from '@/components/selecao-multipla'
 import { PORTES_DA_RECEITA, PORTES_DO_ICP, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
 import { useDadosDoBrasil } from './sinais/dados-do-brasil'
 import { AbasDoModulo, CABECALHO, CampoDeBusca, CELULA, Contagem } from './modulo-contas-e-contatos'
+import { AvisoDaUltimaBusca, DialogoDaBuscaPeloContexto, type ErroNaTela, type PerfilParaBuscar } from './busca-pelo-contexto'
 
 const INTERVALO_POLLING_MS = 5_000
 
@@ -124,6 +134,9 @@ export function PaginaDescobertas() {
   const [pedindoBusca, setPedindoBusca] = useState(false)
   const [criteriosBusca, setCriteriosBusca] = useState<{ criterios: CriteriosDaBusca; icpVersion: number | null; resumo: string; temIcp: boolean } | null>(null)
   const [criteriosEditados, setCriteriosEditados] = useState<CriteriosDaBusca | null>(null)
+  // A busca pelo Contexto da empresa: aberta (preparação nula enquanto o servidor lê o Perfil de cliente ideal).
+  const [buscaPeloContexto, setBuscaPeloContexto] = useState<{ preparacao: PreparacaoDaBusca | null } | null>(null)
+  const [erroDaBusca, setErroDaBusca] = useState<ErroNaTela | null>(null)
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const [modalUrl, setModalUrl] = useState<{ id: string; nome: string } | null>(null)
   const [urlInformada, setUrlInformada] = useState('')
@@ -162,6 +175,11 @@ export function PaginaDescobertas() {
     [estadoAba],
   )
 
+  const { dados: ultimaBusca, recarregar: recarregarUltimaBusca } = useDadosDeDescobertas(
+    (f) => (f.ultimaBusca ? f.ultimaBusca() : Promise.resolve(null)),
+    [],
+  )
+
   const emAndamento = cotacao?.emAndamento ?? false
   const custoId = useId()
 
@@ -193,9 +211,10 @@ export function PaginaDescobertas() {
     const timer = setInterval(() => {
       recarregarCotacao()
       recarregarLista()
+      recarregarUltimaBusca()
     }, INTERVALO_POLLING_MS)
     return () => clearInterval(timer)
-  }, [emAndamento, recarregarCotacao, recarregarLista])
+  }, [emAndamento, recarregarCotacao, recarregarLista, recarregarUltimaBusca])
 
   if (!fonte) {
     return (
@@ -212,8 +231,54 @@ export function PaginaDescobertas() {
   const semSaldo = ilimitado ? false : cotacao ? cotacao.saldoDisponivel < cotacao.creditos : false
   const botaoDesabilitado = pedindoBusca || emAndamento || semSaldo
 
+  /** Pede ao servidor os filtros do Contexto da empresa vigente. Não conseguir ler é um erro próprio, com nova tentativa. */
+  async function prepararPeloContexto() {
+    if (!fonte?.prepararBusca) return
+    setErroDaBusca(null)
+    setBuscaPeloContexto({ preparacao: null })
+    try {
+      const preparacao = await fonte.prepararBusca()
+      setBuscaPeloContexto({ preparacao })
+    } catch (e) {
+      setErroDaBusca({ mensagem: e instanceof Error ? e.message : 'Não foi possível preparar a busca agora.' })
+    }
+  }
+
+  async function buscarPeloContexto(perfis: PerfilParaBuscar[]) {
+    const preparacao = buscaPeloContexto?.preparacao
+    if (!fonte?.buscarPorPerfis || !preparacao || preparacao.contextoVersao === null) return
+    if (cotacao?.estadoDoActor === 'testing' && !cotacao.podeTestar) {
+      setErroDaBusca({ mensagem: 'A fonte desta busca ainda está em validação pela equipe Althius.' })
+      return
+    }
+    setPedindoBusca(true)
+    setErroDaBusca(null)
+    try {
+      await fonte.buscarPorPerfis({
+        perfis,
+        contextoVersao: preparacao.contextoVersao,
+        allowTesting: cotacao?.estadoDoActor === 'testing' && cotacao.podeTestar,
+      })
+      setBuscaPeloContexto(null)
+      recarregarCotacao()
+      recarregarLista()
+      recarregarUltimaBusca()
+    } catch (e) {
+      setErroDaBusca({
+        mensagem: e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.',
+        codigo: e instanceof ErroDaBuscaDeContas ? e.codigo : undefined,
+      })
+    } finally {
+      setPedindoBusca(false)
+    }
+  }
+
   async function dispararBusca() {
     if (!fonte) return
+    if (fonte.prepararBusca && fonte.buscarPorPerfis) {
+      await prepararPeloContexto()
+      return
+    }
     setPedindoBusca(true)
     setErroAcao(null)
     try {
@@ -393,6 +458,8 @@ export function PaginaDescobertas() {
             Sem créditos suficientes: o saldo disponível é {rotuloCreditos(cotacao.saldoDisponivel)}.
           </p>
         )}
+
+        <AvisoDaUltimaBusca ultima={ultimaBusca} />
 
         {erroAcao && !criteriosBusca && (
           <p role="alert" className="text-xs text-al-atencao">
@@ -816,6 +883,24 @@ export function PaginaDescobertas() {
             <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setCriteriosBusca(null); setErroAcao(null) }}>Cancelar</Button><Button type="button" disabled={!criteriosValidos || pedindoBusca} onClick={confirmarBusca} className="bg-al-accent text-al-on-accent hover:bg-al-accent-2">Confirmar</Button></div>
           </div>
         </div>
+      )}
+
+      {buscaPeloContexto && (
+        <DialogoDaBuscaPeloContexto
+          preparacao={buscaPeloContexto.preparacao}
+          opcoes={{
+            setores: [...new Set([...(buscaPeloContexto.preparacao?.perfis.flatMap((p) => p.criterios.setores) ?? []), ...SETORES_DA_BUSCA])].map((valor) => ({ valor })),
+            portes: opcoesDePorte,
+            regioes: dadosDoBrasil ? opcoesDeRegiao : null,
+            cnaes: dadosDoBrasil ? opcoesDeCnae : null,
+          }}
+          custo={`Custo: ${ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.creditos) : 'calculando'} · Saldo: ${ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.saldoDisponivel) : 'calculando'}`}
+          erro={erroDaBusca}
+          enviando={pedindoBusca}
+          aoConfirmar={buscarPeloContexto}
+          aoCancelar={() => { setBuscaPeloContexto(null); setErroDaBusca(null) }}
+          aoPreparar={prepararPeloContexto}
+        />
       )}
 
       {fonte?.aprendizado && (

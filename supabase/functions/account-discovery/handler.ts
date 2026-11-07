@@ -19,10 +19,22 @@ import {
   normalizarCriterios,
 } from './criterios.ts'
 import { ACTOR_RECEITA, candidatasDaReceita, candidatasDoLinkedin } from './normalizar.ts'
-import { type Avaliacao, avaliar, type CandidataBruta } from './pontuacao.ts'
-import { montarPlano, type PlanoDaBusca } from './plano.ts'
+import { type Avaliacao, avaliar, type CandidataBruta, type Motivo } from './pontuacao.ts'
+import { type ChamadaDoActor, MAX_COMBINACOES, montarPlano } from './plano.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
 import { mensagemDaFalhaDaFonte } from '../_shared/marca.ts'
+import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
+import {
+  CONCEITOS,
+  type Conceito,
+  type CriterioDoTexto,
+  LIMITES_DA_PREPARACAO,
+  type MotivoDaPendencia,
+  NOMES_DOS_CONCEITOS,
+  prepararBusca,
+  textoCurto,
+} from './preparacao.ts'
+import { normalizar } from '../signal-runner/adaptadores/comum.ts'
 
 export interface ActorRegistrado {
   actorId: string
@@ -43,6 +55,30 @@ export interface InicioDaBusca {
   outcome: 'go' | 'existing'
   state: string
   actorVersion: string | null
+}
+
+/** Um critério do texto que a fonte não aplicou: vai para o registro da busca e para os motivos, "a verificar". */
+export interface PendenteDaBusca extends CriterioDoTexto {
+  motivo: MotivoDaPendencia
+}
+
+const MOTIVOS: readonly MotivoDaPendencia[] = ['sem_suporte_na_fonte', 'ambiguo', 'faixa_aproximada', 'local_desconhecido', 'valor_invalido']
+
+/** Um recorte da busca: um perfil do Contexto da empresa (ou os filtros avulsos, sem nome). */
+export interface Recorte {
+  nome: string | null
+  criterios: CriteriosDeBusca
+  /** De que trecho do texto veio cada filtro preparado. */
+  aplicados: CriterioDoTexto[]
+  pendentes: PendenteDaBusca[]
+}
+
+/** O que fica gravado de uma busca pelo Contexto da empresa: os filtros executados de cada perfil, a fonte e a versão. */
+export interface RegistroPorPerfis {
+  origem: 'contexto_da_empresa'
+  contexto: { versao: number }
+  fonte: CriteriosDeBusca['fonte']
+  perfis: { nome: string; criterios: CriteriosDeBusca; aplicados: CriterioDoTexto[]; pendentes: PendenteDaBusca[] }[]
 }
 
 /** Um erro do banco com o código SQLSTATE e a mensagem, para o handler traduzir. */
@@ -81,13 +117,19 @@ export interface Db {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   /** A seção ICP do Playbook, com a sessão de quem pede (só Participação ativa lê). Nulo se não há ICP escrito. */
   lerIcp(args: { workspaceId: string; authorization: string; apikey: string }): Promise<IcpLido | null>
+  /**
+   * O Contexto da empresa vigente (get_company_context), com a sessão de quem pede: a versão (nula sem contexto) e o
+   * texto do Perfil de cliente ideal. Lança ErroDoBanco 42501 para quem não participa do Workspace.
+   */
+  lerContexto?(args: { workspaceId: string; authorization: string; apikey: string }): Promise<{ versao: number | null; icp: string }>
   /** Os Actors de busca de empresas do registro, na ordem da cascata. */
   actoresDeBusca(): Promise<ActorRegistrado[]>
   /** begin_account_discovery, com a sessão de quem pede. Lança ErroDoBanco quando o banco recusa. */
   iniciar(args: {
     workspaceId: string
     requestKey: string
-    criterios: CriteriosDeBusca
+    /** Os filtros avulsos, ou o registro dos perfis do Contexto da empresa. */
+    criterios: CriteriosDeBusca | RegistroPorPerfis
     maxResults: number
     actorId: string
     icpVersion: number | null
@@ -111,6 +153,8 @@ export interface Db {
 export interface Deps {
   db: Db
   apify: Apify
+  /** A IA que lê o Perfil de cliente ideal; sem ela, a preparação é falha de tradução. */
+  llm?: Llm
   appOrigin: string
   /** Continua um trabalho depois da resposta (EdgeRuntime.waitUntil). */
   waitUntil: (trabalho: Promise<unknown>) => void
@@ -122,6 +166,9 @@ const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const MAX_EMPRESAS = 100
 const PADRAO_DE_EMPRESAS = 50
 const RESUMO_DO_ICP = 1500
+const MAX_CRITERIOS_GRAVADOS = 15
+/** O teto do registro da busca no banco (discovery_runs.criteria) é 20.000 caracteres. */
+const MAX_REGISTRO = 19_000
 
 function responder(corpo: unknown, status = 200) {
   return new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
@@ -191,38 +238,43 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
   }
 
-  /** Roda as chamadas do plano, avalia as empresas, grava na Caixa e fecha a busca. */
+  /**
+   * Roda as chamadas de cada recorte, avalia cada empresa contra o recorte que a trouxe, junta as repetidas, grava na
+   * Caixa e fecha a busca.
+   */
   async function rodar(a: {
     runId: string
     workspaceId: string
-    plano: PlanoDaBusca
-    criterios: CriteriosDeBusca
+    actorId: string
+    chamadas: (ChamadaDoActor & { recorte: number })[]
+    recortes: Recorte[]
+    porRecorte: number
     maxResults: number
     actor: ActorRegistrado
   }): Promise<void> {
-    const { runId, workspaceId, plano, criterios, maxResults, actor } = a
+    const { runId, workspaceId, actorId, chamadas, recortes, porRecorte, maxResults, actor } = a
     const falhas: string[] = []
-    const brutas: CandidataBruta[] = []
+    const brutas: { candidata: CandidataBruta; recorte: number }[] = []
     let apifyRunId: string | null = null
     let custo = 0
     let custoDesconhecido = false
     let rodou = 0
     // O teto do registro vale para a busca inteira: cada chamada leva a sua parte.
-    const teto = actor.maxCostUsd / plano.chamadas.length
+    const teto = actor.maxCostUsd / chamadas.length
 
-    for (const chamada of plano.chamadas) {
-      if (brutas.length >= maxResults) break
+    for (const chamada of chamadas) {
+      if (brutas.filter((b) => b.recorte === chamada.recorte).length >= porRecorte) continue
       let execucao
       try {
         execucao = await deps.apify.run({
-          actorId: plano.actorId,
+          actorId,
           input: chamada.input,
           maxItems: chamada.maxItems,
           maxTotalChargeUsd: teto,
         })
       } catch (erro) {
         falhas.push(codigoDaFalha(erro))
-        log({ type: 'account_discovery', runId, actorId: plano.actorId, outcome: 'apify_failed', errorCode: codigoDaFalha(erro) })
+        log({ type: 'account_discovery', runId, actorId, outcome: 'apify_failed', errorCode: codigoDaFalha(erro) })
         continue
       }
       rodou++
@@ -238,7 +290,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       try {
         await deps.db.gravarCusto({
           workspaceId,
-          actorId: plano.actorId,
+          actorId,
           runId: execucao.runId ?? `account-discovery:${crypto.randomUUID()}`,
           items: execucao.items.length,
           costUsd: custoDaExecucao,
@@ -246,9 +298,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       } catch (erro) {
         log({ type: 'account_discovery', runId, outcome: 'cost_failed', message: String(erro) })
       }
-      brutas.push(...(plano.actorId === ACTOR_RECEITA
+      const novas = actorId === ACTOR_RECEITA
         ? candidatasDaReceita(execucao.items, agora(), execucao.runId ?? undefined)
-        : candidatasDoLinkedin(execucao.items, execucao.runId ?? undefined)))
+        : candidatasDoLinkedin(execucao.items, execucao.runId ?? undefined)
+      brutas.push(...novas.map((candidata) => ({ candidata, recorte: chamada.recorte })))
     }
 
     if (rodou === 0) {
@@ -256,9 +309,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return
     }
 
-    const avaliadas = brutas
-      .map((candidata) => ({ candidata, avaliacao: avaliar(candidata, criterios) }))
-      .filter(({ avaliacao }) => !avaliacao.excluida)
+    const avaliadas = juntarRepetidas(
+      brutas
+        .map(({ candidata, recorte }) => ({ candidata, recorte, avaliacao: avaliar(candidata, recortes[recorte].criterios) }))
+        .filter(({ avaliacao }) => !avaliacao.excluida),
+      recortes,
+    )
       .sort((x, y) =>
         y.avaliacao.score - x.avaliacao.score ||
         y.avaliacao.reasons.filter((m) => m.atende !== null).length - x.avaliacao.reasons.filter((m) => m.atende !== null).length
@@ -293,7 +349,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   /** Abre a busca no banco e, se ela começou, deixa o Actor rodando depois da resposta. */
   async function abrir(a: {
     workspaceId: string
-    criterios: CriteriosDeBusca
+    /** Um recorte por perfil; os filtros avulsos são um recorte sem nome. Todos da mesma fonte. */
+    recortes: Recorte[]
+    /** O que fica gravado como os filtros da busca. */
+    registro: CriteriosDeBusca | RegistroPorPerfis
     maxResults: number
     requestKey: string
     icpVersion: number | null
@@ -302,9 +361,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     authorization: string
     apikey: string
   }): Promise<Response> {
-    const falta = faltaParaBuscar(a.criterios)
-    if (falta) return responder({ code: 'filtros_insuficientes', error: falta }, 422)
-    const plano = montarPlano(a.criterios, a.maxResults)
+    for (const recorte of a.recortes) {
+      const falta = faltaParaBuscar(recorte.criterios)
+      if (falta) return responder({ code: 'filtros_insuficientes', error: recorte.nome ? `${recorte.nome}: ${falta}` : falta }, 422)
+    }
+    // Cada recorte leva a sua parte do limite de empresas e das execuções: a busca não fica maior nem mais cara.
+    const porRecorte = Math.ceil(a.maxResults / a.recortes.length)
+    const combinacoes = Math.max(1, Math.floor(MAX_COMBINACOES / a.recortes.length))
+    const planos = a.recortes.map((r) => montarPlano(r.criterios, porRecorte, combinacoes))
+    const plano = {
+      actorId: planos[0].actorId,
+      chamadas: planos.flatMap((p, recorte) => p.chamadas.map((c) => ({ ...c, recorte }))),
+    }
 
     let actor: ActorRegistrado | undefined
     try {
@@ -327,7 +395,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       inicio = await deps.db.iniciar({
         workspaceId: a.workspaceId,
         requestKey: a.requestKey,
-        criterios: a.criterios,
+        criterios: a.registro,
         maxResults: a.maxResults,
         actorId: plano.actorId,
         icpVersion: a.icpVersion,
@@ -348,12 +416,83 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     deps.waitUntil(executar({
       runId: inicio.runId,
       workspaceId: a.workspaceId,
-      plano,
-      criterios: a.criterios,
+      actorId: plano.actorId,
+      chamadas: plano.chamadas,
+      recortes: a.recortes,
+      porRecorte,
       maxResults: a.maxResults,
       actor,
     }))
     return responder({ runId: inicio.runId, state: inicio.state }, 202)
+  }
+
+  /** O contexto vigente com a sessão de quem pede, ou a resposta de recusa. */
+  async function contextoVigente(
+    a: { workspaceId: string; authorization: string; apikey: string },
+  ): Promise<{ versao: number | null; icp: string } | Response> {
+    if (!deps.db.lerContexto) return responder({ error: 'Ação indisponível.' }, 400)
+    try {
+      return await deps.db.lerContexto(a)
+    } catch (erro) {
+      if (erro instanceof ErroDoBanco && erro.code === '42501') return recusaDoBanco(erro)
+      log({ type: 'account_discovery', outcome: 'context_failed', message: String(erro) })
+      return responder({ code: 'erro', error: 'Não foi possível ler o Contexto da empresa agora.' }, 500)
+    }
+  }
+
+  /**
+   * A busca pelos perfis que a preparação montou do Contexto da empresa, já ajustados na tela. Só roda com a versão
+   * vigente: filtros de uma versão antiga precisam ser preparados de novo.
+   */
+  async function buscarPorPerfis(a: {
+    corpo: Record<string, unknown>
+    workspaceId: string
+    maxResults: number
+    requestKey: string
+    authorization: string
+    apikey: string
+  }): Promise<Response> {
+    const { corpo, workspaceId, authorization, apikey } = a
+    const perfis = corpo.perfis as unknown[]
+    if (!perfis.length || perfis.length > LIMITES_DA_PREPARACAO.perfis) {
+      return responder({ code: 'filtros_invalidos', error: `A busca tem de 1 a ${LIMITES_DA_PREPARACAO.perfis} perfis.` }, 400)
+    }
+    const versao = Number.isInteger(corpo.contextoVersao) && (corpo.contextoVersao as number) > 0 ? corpo.contextoVersao as number : null
+    if (versao === null) {
+      return responder({ code: 'filtros_invalidos', error: 'Prepare a busca pelo Contexto da empresa de novo.' }, 400)
+    }
+    const vigente = await contextoVigente({ workspaceId, authorization, apikey })
+    if (vigente instanceof Response) return vigente
+    if (vigente.versao !== versao) {
+      return responder({
+        code: 'contexto_mudou',
+        error: 'O Contexto da empresa mudou desde que estes filtros foram preparados. Prepare a busca de novo com a versão atual.',
+      }, 409)
+    }
+    const recortes = perfis.map(recorteDoPedido)
+    if (recortes.some((r) => r.criterios.fonte !== recortes[0].criterios.fonte)) {
+      return responder({ code: 'filtros_invalidos', error: 'Todos os perfis de uma busca usam a mesma fonte.' }, 422)
+    }
+    const registro: RegistroPorPerfis = {
+      origem: 'contexto_da_empresa',
+      contexto: { versao },
+      fonte: recortes[0].criterios.fonte,
+      perfis: recortes.map((r) => ({ nome: r.nome!, criterios: r.criterios, aplicados: r.aplicados, pendentes: r.pendentes })),
+    }
+    if (JSON.stringify(registro).length > MAX_REGISTRO) {
+      return responder({ code: 'filtros_invalidos', error: 'Os filtros desta busca são grandes demais. Remova alguns termos e tente de novo.' }, 422)
+    }
+    return await abrir({
+      workspaceId,
+      recortes,
+      registro,
+      maxResults: a.maxResults,
+      requestKey: a.requestKey,
+      icpVersion: null,
+      allowTesting: corpo.allowTesting === true,
+      authorization,
+      apikey,
+    })
   }
 
   return comCors(deps.appOrigin, async (req) => {
@@ -385,7 +524,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (!proposta) return responder({ code: 'nao_encontrado', error: 'Pedido não encontrado neste Workspace.' }, 404)
       return await abrir({
         workspaceId: proposta.workspaceId,
-        criterios: proposta.criterios,
+        recortes: [{ nome: null, criterios: proposta.criterios, aplicados: [], pendentes: [] }],
+        registro: proposta.criterios,
         maxResults: proposta.maxResults,
         requestKey: `confirmar:${runId}`,
         icpVersion: proposta.icpVersion,
@@ -398,6 +538,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const workspaceId = typeof corpo.workspaceId === 'string' ? corpo.workspaceId : ''
     if (!UUID.test(workspaceId)) return responder({ error: 'Workspace obrigatório.' }, 400)
+
+    if (acao === 'prepare') {
+      const contexto = await contextoVigente({ workspaceId, authorization, apikey })
+      if (contexto instanceof Response) return contexto
+      const preparacao = await prepararBusca({ contexto, llm: deps.llm, workspaceId })
+      log({ type: 'account_discovery', outcome: 'prepared', estado: preparacao.estado, perfis: preparacao.perfis.length })
+      return responder(preparacao)
+    }
 
     if (acao === 'criteria') {
       let icp: IcpLido | null
@@ -425,10 +573,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
       const chave = typeof corpo.requestKey === 'string' ? corpo.requestKey.trim() : ''
       if (chave.length > 100) return responder({ error: 'Chave do pedido inválida.' }, 400)
+      if (Array.isArray(corpo.perfis)) {
+        return await buscarPorPerfis({ corpo, workspaceId, maxResults, requestKey: chave || crypto.randomUUID(), authorization, apikey })
+      }
       const icpVersion = Number.isInteger(corpo.icpVersion) && (corpo.icpVersion as number) > 0 ? corpo.icpVersion as number : null
+      const criterios = normalizarCriterios(corpo.criteria)
       return await abrir({
         workspaceId,
-        criterios: normalizarCriterios(corpo.criteria),
+        recortes: [{ nome: null, criterios, aplicados: [], pendentes: [] }],
+        registro: criterios,
         maxResults,
         requestKey: chave || crypto.randomUUID(),
         icpVersion,
@@ -466,4 +619,76 @@ function paraGravar(x: { candidata: CandidataBruta; avaliacao: Avaliacao }): Can
     reasons: a.reasons,
     signals: c.signals,
   }
+}
+
+/** Um critério do texto que chega do navegador: conceito conhecido e valor presente, cortado; nulo se não serve. */
+function criterioDoPedido(cru: unknown): (CriterioDoTexto & { motivo?: unknown }) | null {
+  const c = cru && typeof cru === 'object' ? cru as Record<string, unknown> : {}
+  if (!(CONCEITOS as readonly unknown[]).includes(c.conceito)) return null
+  const valor = textoCurto(c.valor, LIMITES_DA_PREPARACAO.valor)
+  if (!valor) return null
+  return { conceito: c.conceito as Conceito, valor, trecho: textoCurto(c.trecho, LIMITES_DA_PREPARACAO.trecho), motivo: c.motivo }
+}
+
+function lista(valor: unknown): unknown[] {
+  return Array.isArray(valor) ? valor : []
+}
+
+/** Um perfil que chega do navegador: nome, filtros limpos, a origem no texto e os pendentes, com motivo conhecido. */
+function recorteDoPedido(bruto: unknown, indice: number): Recorte {
+  const perfil = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto as Record<string, unknown> : {}
+  const aplicados = lista(perfil.aplicados).map(criterioDoPedido).flatMap((c) =>
+    c ? [{ conceito: c.conceito, valor: c.valor, trecho: c.trecho }] : []
+  )
+  const pendentes = lista(perfil.pendentes).map(criterioDoPedido).flatMap((c): PendenteDaBusca[] =>
+    c && MOTIVOS.includes(c.motivo as MotivoDaPendencia)
+      ? [{ conceito: c.conceito, valor: c.valor, trecho: c.trecho, motivo: c.motivo as MotivoDaPendencia }]
+      : []
+  )
+  return {
+    nome: textoCurto(perfil.nome, LIMITES_DA_PREPARACAO.nome) || `Perfil ${indice + 1}`,
+    criterios: normalizarCriterios(perfil.criterios),
+    aplicados: aplicados.slice(0, MAX_CRITERIOS_GRAVADOS),
+    pendentes: pendentes.slice(0, MAX_CRITERIOS_GRAVADOS),
+  }
+}
+
+/** Quem é a mesma empresa: o LinkedIn, o CNPJ, o site ou, sem nada disso, o nome. */
+function chaveDaEmpresa(c: CandidataBruta): string {
+  if (c.linkedinUrl) return `li:${c.linkedinUrl.toLowerCase().replace(/\/+$/, '')}`
+  if (c.cnpj) return `cnpj:${c.cnpj.replace(/\D/g, '')}`
+  if (c.website) return `site:${c.website.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '')}`
+  return `nome:${normalizar(c.name)}`
+}
+
+/**
+ * A empresa que mais de um recorte trouxe fica uma vez, com a melhor avaliação. Os motivos dizem de qual perfil ela
+ * veio e o que o perfil pede e a fonte não verificou: isso fica "a verificar", sem pesar na nota.
+ */
+function juntarRepetidas(
+  avaliadas: { candidata: CandidataBruta; recorte: number; avaliacao: Avaliacao }[],
+  recortes: Recorte[],
+): { candidata: CandidataBruta; avaliacao: Avaliacao }[] {
+  const grupos = new Map<string, { melhor: (typeof avaliadas)[number]; recortes: Set<number> }>()
+  for (const item of avaliadas) {
+    const chave = chaveDaEmpresa(item.candidata)
+    const grupo = grupos.get(chave)
+    if (!grupo) {
+      grupos.set(chave, { melhor: item, recortes: new Set([item.recorte]) })
+      continue
+    }
+    grupo.recortes.add(item.recorte)
+    if (item.avaliacao.score > grupo.melhor.avaliacao.score) grupo.melhor = item
+  }
+  return [...grupos.values()].map(({ melhor, recortes: deOnde }) => {
+    const nomes = [...deOnde].sort().map((i) => recortes[i].nome).filter((n): n is string => !!n)
+    const extras: Motivo[] = []
+    if (nomes.length) {
+      extras.push({ criterio: 'perfil', atende: null, texto: `${nomes.length > 1 ? 'Perfis' : 'Perfil'}: ${nomes.join(', ')}.` })
+    }
+    for (const p of recortes[melhor.recorte].pendentes) {
+      extras.push({ criterio: 'pendente', atende: null, texto: `A verificar: ${NOMES_DOS_CONCEITOS[p.conceito]} ${p.valor} (a fonte não aplicou).` })
+    }
+    return { candidata: melhor.candidata, avaliacao: { ...melhor.avaliacao, reasons: [...melhor.avaliacao.reasons, ...extras] } }
+  })
 }

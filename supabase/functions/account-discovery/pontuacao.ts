@@ -33,7 +33,8 @@ export interface CandidataBruta {
   outrosLocais?: string[]
 }
 
-export type CriterioAvaliado = 'setor' | 'regiao' | 'porte' | 'tecnologia' | 'excluir'
+/** `perfil` e `pendente` só informam (atende nulo): de qual perfil veio e o que a fonte não verificou. */
+export type CriterioAvaliado = 'setor' | 'regiao' | 'porte' | 'tecnologia' | 'excluir' | 'perfil' | 'pendente'
 
 export interface Motivo {
   criterio: CriterioAvaliado
