@@ -1,5 +1,5 @@
-// Prateleira "Para o seu nicho" em /sinais: o nicho sai dos Segmentos do ICP da Memória do Workspace, como antes do
-// Sinais first (desfazer-sinais-first 04), sem chamar list_signal_catalog_for_my_icp. A prateleira mostra cards e a
+// Prateleira "Para o seu nicho" em /sinais: o nicho sai do Perfil de cliente ideal do Contexto da empresa (contexto-da-empresa 07),
+// sem chamar list_signal_catalog_for_my_icp. A prateleira mostra cards e a
 // letra interna do nicho (A–H) nunca aparece para o cliente.
 import { expect, test } from '@playwright/test'
 import { conferirWorkspaceOperacional, vigiar } from '../support/vigia.js'
@@ -16,7 +16,7 @@ test('Sinais: a prateleira "Para o seu nicho" carrega sem ranquear pelo ICP estr
 
   const prateleira = page.getByRole('region', { name: 'Para o seu nicho' })
   await expect(prateleira.getByRole('heading', { name: 'Para o seu nicho', level: 2 })).toBeVisible()
-  const subtitulo = prateleira.getByText(/pelos Segmentos do ICP do Workspace$|Descreva os Segmentos do ICP na Memória para afinar\.$/)
+  const subtitulo = prateleira.getByText(/pelo Perfil de cliente ideal do Contexto da empresa$|Descreva o Perfil de cliente ideal no Contexto da empresa para afinar\.$/)
   await expect(subtitulo).toBeVisible()
   const cards = prateleira.getByRole('list', { name: 'Para o seu nicho' }).getByRole('heading', { level: 3 })
   await expect(cards.first()).toBeVisible()

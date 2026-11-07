@@ -17,7 +17,7 @@ const CONTEXTO: ContextoDaResposta = {
   contact: { name: 'Maria Souza', role: null },
   recipient_name: null,
   messages: [{ direction: 'recebida', at: null, text: 'Pode mandar o preço?' }],
-  playbook: [],
+  contexto: { version: null, empresa: '', icp: '', personas: '' },
   agent: {},
 }
 

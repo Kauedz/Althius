@@ -430,6 +430,18 @@ describe('Memória, Habilidades, Rotinas e Atividade', () => {
     await waitFor(() => expect(screen.queryByText(/leva 7 meses/)).not.toBeInTheDocument())
   })
 
+  it('a Memória do Agente mostra o Contexto da empresa vigente, os três textos, e não as seções antigas (contexto-da-empresa 07)', async () => {
+    renderizarApp('/agentes/scopus/memoria')
+    const contexto = await screen.findByRole('region', { name: 'Contexto da empresa' })
+    expect(await within(contexto).findByRole('heading', { name: 'Perfil de cliente ideal' })).toBeInTheDocument()
+    expect(within(contexto).getByRole('heading', { name: 'Empresa' })).toBeInTheDocument()
+    expect(within(contexto).getByRole('heading', { name: 'Personas' })).toBeInTheDocument()
+    expect(within(contexto).getByText(/ICP primário: incorporadoras residenciais/)).toBeInTheDocument()
+    expect(within(contexto).getAllByRole('link', { name: 'Contexto da empresa' })[0]).toHaveAttribute('href', '/configuracoes/contexto')
+    expect(screen.queryByText('Segmentos')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Memória do Workspace|Contexto do Workspace/ })).not.toBeInTheDocument()
+  })
+
   it('desativa uma Habilidade', async () => {
     const { usuario } = renderizarApp('/agentes/scopus/habilidades')
     const chave = await screen.findByRole('switch', { name: /Pontuar aderência ao ICP/ })

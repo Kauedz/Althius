@@ -1,9 +1,8 @@
-// A revisão do Playbook no Workspace operacional (CRM-09, ADR-0010; agentes-em-conversa 05): a nova versão de uma seção
-// que o Scopus ou o Ethos propôs aparece na fila /aprovacoes e no passo da Conversa, com a vigente ao lado da proposta.
-// Só o Administrador aprova ou recusa (pgTAP `revisao_do_playbook_por_aprovacao.sql` confere no banco); o Membro vê. A
-// Memória do Workspace mostra o ICP e as Personas do Playbook: a versão aprovada, a proposta pendente, a última recusa e
-// o estado vazio, sem nada da Demonstração. O Playbook marca a seção com proposta pendente.
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+// A revisão do Playbook no Workspace operacional (CRM-09, ADR-0010) depois da retirada do Playbook (contexto-da-empresa
+// 07): a revisão que o Scopus ou o Ethos propôs antes continua na fila /aprovacoes e no passo da Conversa, só como
+// registro. Nenhum papel a decide pela tela (a pendente vence sozinha), ela não conta como pendente, e a tela não lê
+// nenhuma seção do Playbook.
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -46,28 +45,10 @@ function revisaoDoIcp(state: Estado, id = 'rev-icp') {
   }
 }
 
-/** Uma seção como `get_playbook_section` a devolve; sem versão, vazia. */
-function secaoNoBanco(section: string, name: string, texto: string | null, version = 2) {
-  return texto === null
-    ? { section, name, version: null, content: null, updated_by: null, updated_at: null, history: [] }
-    : {
-        section,
-        name,
-        version,
-        content: { texto, linhas: [] },
-        updated_by: ANA,
-        updated_at: '2026-10-08T14:00:00Z',
-        history: [{ version, updated_by: ANA, updated_at: '2026-10-08T14:00:00Z' }],
-      }
-}
-
 function abrir(
   rota: string,
   papel: 'admin' | 'member',
-  { fila = [revisaoDoIcp('pendente')], secoes = {} }: {
-    fila?: Record<string, unknown>[]
-    secoes?: Record<string, ReturnType<typeof secaoNoBanco>>
-  } = {},
+  { fila = [revisaoDoIcp('pendente')] }: { fila?: Record<string, unknown>[] } = {},
 ) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
@@ -75,6 +56,7 @@ function abrir(
   let linhas = fila
   const decisoes: Record<string, unknown>[] = []
   const execucoes: string[] = []
+  const leiturasDoPlaybook: unknown[] = []
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(MARINA),
     tabelas: {
@@ -121,11 +103,10 @@ function abrir(
         linhas = linhas.map((l) => (l.id === p.p_approval_id ? { ...revisaoDoIcp(estado), decided_by: MARINA.id } : l))
         return estado
       },
-      get_playbook_section: (p) =>
-        secoes[String(p.p_section)] ??
-        (p.p_section === 'icp'
-          ? secaoNoBanco('icp', 'ICP', 'Empresas de 50 a 200 pessoas no Brasil')
-          : secaoNoBanco(String(p.p_section), String(p.p_section), null)),
+      get_playbook_section: (p) => {
+        leiturasDoPlaybook.push(p)
+        return null
+      },
     },
     funcoes: {
       'agent-conversation': (corpo) =>
@@ -137,129 +118,51 @@ function abrir(
     },
   })
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
-  return { usuario: userEvent.setup(), decisoes, execucoes }
+  return { usuario: userEvent.setup(), decisoes, execucoes, leiturasDoPlaybook }
 }
 
-describe('A revisão do Playbook na fila de Aprovações', () => {
-  it('o Administrador vê a vigente ao lado da proposta e aprova: a versão nova é gravada, sem executor', async () => {
-    const { usuario, decisoes, execucoes } = abrir('/aprovacoes', 'admin')
+describe('A revisão do Playbook na fila de Aprovações, depois da retirada', () => {
+  it('a pendente fica como registro: sem Aprovar nem Recusar, sem ler o Playbook, e leva ao Contexto da empresa', async () => {
+    const { decisoes, execucoes, leiturasDoPlaybook } = abrir('/aprovacoes', 'admin')
 
     const cartao = await screen.findByRole('article', { name: 'Nova versão de ICP no Playbook' })
-    expect(within(cartao).getByRole('link', { name: 'Playbook · ICP' })).toHaveAttribute('href', '/configuracoes/playbook/icp')
+    expect(within(cartao).getByText('Playbook · ICP')).toBeInTheDocument()
+    expect(within(cartao).queryByRole('link', { name: 'Playbook · ICP' })).not.toBeInTheDocument()
     expect(within(cartao).getByText(/Os três últimos fechamentos/)).toBeInTheDocument()
-    const vigente = await within(cartao).findByRole('region', { name: 'Versão vigente' })
-    expect(await within(vigente).findByText('Vigente · versão 2')).toBeInTheDocument()
-    expect(await within(vigente).findByText('Empresas de 50 a 200 pessoas no Brasil')).toBeInTheDocument()
-    const proposta = within(cartao).getByRole('region', { name: 'Proposta' })
-    expect(within(proposta).getByText('Indústrias de 200 a 500 pessoas no Sul')).toBeInTheDocument()
-
-    await usuario.click(await within(cartao).findByRole('button', { name: 'Aprovar' }))
-
-    await waitFor(() =>
-      expect(decisoes).toEqual([{ p_approval_id: 'rev-icp', p_decision: 'aprovar', p_where: 'fila' }]),
-    )
-    expect(await within(cartao).findByText('Aprovada por Marina Souza · versão 3 gravada no Playbook')).toBeInTheDocument()
-    expect(execucoes).toEqual([])
-    expect(within(cartao).queryByRole('region', { name: 'Proposta' })).not.toBeInTheDocument()
-  })
-
-  it('o Administrador recusa, e o cartão diz que o Playbook não mudou', async () => {
-    const { usuario, decisoes } = abrir('/aprovacoes', 'admin')
-    const cartao = await screen.findByRole('article', { name: 'Nova versão de ICP no Playbook' })
-    await usuario.click(await within(cartao).findByRole('button', { name: 'Recusar' }))
-    expect(await within(cartao).findByText('Recusada por Marina Souza · o Playbook não mudou')).toBeInTheDocument()
-    expect(decisoes).toEqual([{ p_approval_id: 'rev-icp', p_decision: 'recusar', p_where: 'fila' }])
-  })
-
-  it('o Membro vê a proposta pendente, mas não decide', async () => {
-    const { decisoes } = abrir('/aprovacoes', 'member')
-    const cartao = await screen.findByRole('article', { name: 'Nova versão de ICP no Playbook' })
-    expect(await within(cartao).findByText('Só um Administrador decide esta Aprovação.')).toBeInTheDocument()
+    expect(
+      within(cartao).getByText('Não pode mais ser decidida · o Playbook foi substituído pelo Contexto da empresa'),
+    ).toBeInTheDocument()
+    expect(within(cartao).getByRole('link', { name: 'Contexto da empresa' })).toHaveAttribute('href', '/configuracoes/contexto')
     expect(within(cartao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Recusar' })).not.toBeInTheDocument()
+    expect(within(cartao).queryByText('Indústrias de 200 a 500 pessoas no Sul')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pendentes · 0' })).toBeInTheDocument()
     expect(decisoes).toEqual([])
+    expect(execucoes).toEqual([])
+    expect(leiturasDoPlaybook).toEqual([])
   })
 
-  it('a desatualizada diz que a seção mudou antes da decisão e pede uma proposta nova', async () => {
-    abrir('/aprovacoes', 'admin', { fila: [revisaoDoIcp('desatualizada')] })
-    const cartao = await screen.findByRole('article', { name: 'Nova versão de ICP no Playbook' })
-    expect(
-      await within(cartao).findByText('Desatualizada · a seção mudou antes da decisão; peça ao Scopus uma proposta nova'),
-    ).toBeInTheDocument()
-    expect(within(cartao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
+  it('as decididas continuam com o histórico: quem decidiu e o que aconteceu', async () => {
+    abrir('/aprovacoes', 'member', {
+      fila: [revisaoDoIcp('aprovada', 'rev-1'), revisaoDoIcp('recusada', 'rev-2'), revisaoDoIcp('desatualizada', 'rev-3')],
+    })
+    expect(await screen.findByText('Aprovada por Ana Prado · versão 3 gravada no Playbook')).toBeInTheDocument()
+    expect(screen.getByText('Recusada por Ana Prado · o Playbook não mudou')).toBeInTheDocument()
+    expect(screen.getByText('Desatualizada · a seção mudou antes da decisão')).toBeInTheDocument()
   })
 })
 
-describe('A revisão do Playbook no passo da Conversa', () => {
-  it('a Conversa mostra a proposta e o estado dela, e o Administrador aprova ali mesmo', async () => {
+describe('A revisão do Playbook no passo da Conversa, depois da retirada', () => {
+  it('a Conversa mostra o registro da revisão, sem decisão ali', async () => {
     const { usuario, decisoes } = abrir('/agentes/agente-scopus/conversa', 'admin')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' }), 'Ajuste o ICP')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
-    expect(await screen.findByText(/Scopus propôs uma nova versão do ICP — aguardando Aprovação de um Administrador/))
-      .toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Nova versão de ICP no Playbook' })
-    expect(within(cartao).getByText('Aprovação pendente')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Indústrias de 200 a 500 pessoas no Sul')).toBeInTheDocument()
-    await usuario.click(await within(cartao).findByRole('button', { name: 'Aprovar' }))
-
-    await waitFor(() =>
-      expect(decisoes).toEqual([{ p_approval_id: 'rev-icp', p_decision: 'aprovar', p_where: 'conversa' }]),
-    )
-    expect(await within(cartao).findByText(/versão 3 gravada no Playbook/)).toBeInTheDocument()
-  })
-})
-
-describe('A Memória do Workspace operacional lê o ICP e as Personas do Playbook', () => {
-  it('mostra o ICP aprovado e a proposta pendente, sem nada da Demonstração', async () => {
-    abrir('/configuracoes/memoria/icp', 'member')
-
-    const icp = await screen.findByRole('region', { name: 'ICP vigente' })
-    expect(await within(icp).findByText('Empresas de 50 a 200 pessoas no Brasil')).toBeInTheDocument()
-    expect(within(icp).getByText('Vigente')).toBeInTheDocument()
-    expect(within(icp).getByText(/Versão 2, atualizada em .* por Ana Prado/)).toBeInTheDocument()
-    expect(within(icp).getByText('Revisão pendente')).toBeInTheDocument()
-    // O Membro não edita aqui: propõe a revisão no Playbook.
-    expect(within(icp).getByRole('link', { name: 'Pedir revisão' })).toHaveAttribute('href', '/configuracoes/playbook/icp')
-    expect(within(icp).getByRole('link', { name: /Ver histórico/ })).toHaveAttribute('href', '/configuracoes/playbook/icp')
-    expect(within(icp).queryByRole('link', { name: /Editar no Playbook/ })).not.toBeInTheDocument()
-    expect(within(icp).getByText(/Usado por Scopus na nota de aderência/)).toBeInTheDocument()
-    expect(await within(icp).findByText('Proposta pendente do Scopus.')).toBeInTheDocument()
-    expect(within(icp).getByRole('link', { name: /Ver proposta pendente/ })).toHaveAttribute('href', '/aprovacoes')
-    expect(screen.queryByText(/Aguardando a execução dos Agentes/)).not.toBeInTheDocument()
-    // Nada dos documentos de exemplo da Demonstração.
-    expect(screen.queryByText(/Serviços financeiros|Brasil e México|Solicitar revisão/)).not.toBeInTheDocument()
-  })
-
-  it('depois de uma recusa, diz quem recusou e que o ICP vigente não mudou', async () => {
-    abrir('/configuracoes/memoria/icp', 'admin', { fila: [revisaoDoIcp('recusada')] })
-    const icp = await screen.findByRole('region', { name: 'ICP vigente' })
-    expect(await within(icp).findByText(/A última proposta do Scopus foi recusada por Ana Prado\. O ICP vigente não mudou\./))
-      .toBeInTheDocument()
-    expect(within(icp).queryByText('Proposta pendente do Scopus.')).not.toBeInTheDocument()
-    // O Administrador edita no Playbook, que gera a versão nova.
-    expect(within(icp).getByRole('link', { name: /Editar no Playbook/ })).toHaveAttribute('href', '/configuracoes/playbook/icp')
-  })
-
-  it('sem versão, as Personas dizem o que fazer: importar o Playbook ou pedir ao Ethos', async () => {
-    abrir('/configuracoes/memoria/personas', 'admin', { fila: [] })
-    const personas = await screen.findByRole('region', { name: 'Personas vigentes' })
     expect(
-      await within(personas).findByText('Ainda não há Personas. Importe o Playbook ou peça ao Ethos para montar.'),
+      within(cartao).getByText('Não pode mais ser decidida · o Playbook foi substituído pelo Contexto da empresa'),
     ).toBeInTheDocument()
-    expect(within(personas).getByRole('link', { name: 'Abrir o Playbook' })).toHaveAttribute('href', '/configuracoes/playbook/personas')
-    expect(within(personas).queryByText('Vigente')).not.toBeInTheDocument()
-  })
-})
-
-describe('O Playbook marca a seção com proposta pendente', () => {
-  it('o menu e a seção avisam da proposta, e a versão vigente continua à mostra', async () => {
-    abrir('/configuracoes/playbook/icp', 'admin')
-    const menu = await screen.findByRole('navigation', { name: 'Seções do Playbook' })
-    expect(await within(menu).findByRole('link', { name: 'ICP, proposta pendente' })).toBeInTheDocument()
-    expect(within(menu).getByRole('link', { name: 'Personas' })).toBeInTheDocument()
-    expect(await screen.findByText('Há uma proposta para ICP, aguardando Aprovação.')).toBeInTheDocument()
-    expect(screen.getByText(/Salvar uma versão agora deixa a proposta desatualizada/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ver a proposta' })).toHaveAttribute('href', '/aprovacoes')
+    expect(within(cartao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
+    expect(decisoes).toEqual([])
   })
 })

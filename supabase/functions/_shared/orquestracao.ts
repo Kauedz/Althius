@@ -174,13 +174,6 @@ export interface ContextoDaEmpresaNaExecucao {
 /** O contexto de um Workspace que ainda não salvou nenhuma versão. */
 export const CONTEXTO_VAZIO: ContextoDaEmpresaNaExecucao = { version: null, empresa: '', icp: '', personas: '' }
 
-/** Uma seção do Playbook do Workspace, como a Proposta de resposta ainda a recebe (até o ticket 07). */
-export interface SecaoDoPlaybookNaExecucao {
-  section: string
-  name: string
-  content: { texto?: unknown; linhas?: unknown } | null
-}
-
 /** Uma falha que vira o motivo gravado na Execução (`error_code`). */
 export class ErroDoModelo extends Error {
   /** `detalhe` vai só para o log da função (ex.: o motivo que o provedor mandou), nunca para a tela. */
@@ -487,26 +480,6 @@ export async function coordenarPedido(
 // ---------------------------------------------------------------------------------------------------------------------
 // O Contexto da empresa nos Agentes (contexto-da-empresa, ticket 06).
 
-/** O Playbook entra no prompt da Proposta de resposta até este tamanho (reply-proposal-runner, até o ticket 07). */
-export const MAX_CARACTERES_DO_PLAYBOOK = 24_000
-
-function linhasComoTexto(linhas: unknown): string[] {
-  if (!Array.isArray(linhas)) return []
-  return linhas.flatMap((linha) => {
-    if (!linha || typeof linha !== 'object') return []
-    const campos = Object.entries(linha as Record<string, unknown>)
-      .filter(([, valor]) => typeof valor === 'string' && valor.trim() !== '')
-      .map(([campo, valor]) => `${campo}: ${String(valor).trim()}`)
-    return campos.length ? [`- ${campos.join('; ')}`] : []
-  })
-}
-
-/** O texto e as linhas de uma seção do Playbook, para a Proposta de resposta (reply-proposal-runner, até o ticket 07). */
-export function corpoDaSecao(secao: SecaoDoPlaybookNaExecucao): string {
-  const texto = typeof secao.content?.texto === 'string' ? secao.content.texto.trim() : ''
-  return [texto, ...linhasComoTexto(secao.content?.linhas)].filter(Boolean).join('\n')
-}
-
 /** Cada texto do Contexto da empresa entra no prompt até este tamanho; o que passar é cortado, com o aviso. */
 export const MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO = 12_000
 
@@ -544,6 +517,21 @@ const REGRA_DE_ESCRITA =
   'a uma correção, mostre o texto sugerido e diga que um Administrador precisa salvá-lo.'
 
 /**
+ * Os textos escritos do Contexto da empresa, cada um com o título ("### Empresa") e cortado em
+ * MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO; texto vazio fica de fora. Vazio quando nenhum está escrito.
+ */
+export function textosDoContexto(contexto: ContextoDaEmpresaNaExecucao): string {
+  return TEXTOS_DO_CONTEXTO.map((t) => ({ ...t, texto: String(contexto[t.campo] ?? '').trim() }))
+    .filter((t) => t.texto !== '')
+    .map(({ nome, texto, corte }) => {
+      const cortado = texto.length > MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO
+        ? `${texto.slice(0, MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO)}\n[…${corte}]`
+        : texto
+      return `### ${nome}\n${cortado}`
+    }).join('\n\n')
+}
+
+/**
  * O que o Agente sabe da empresa, pelo Contexto da empresa vigente do Workspace. Sem contexto, ele é mandado a perguntar
  * o que a empresa vende e a levar a pessoa às Configurações. Só os três textos: nunca dado de Contatos nem Playbook.
  */
@@ -560,12 +548,7 @@ export function contextoDaEmpresa(contexto: ContextoDaEmpresaNaExecucao, special
       REGRA_DE_ESCRITA,
     ].join('\n\n')
   }
-  const corpo = escritos.map(({ nome, texto, corte }) => {
-    const cortado = texto.length > MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO
-      ? `${texto.slice(0, MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO)}\n[…${corte}]`
-      : texto
-    return `### ${nome}\n${cortado}`
-  }).join('\n\n')
+  const corpo = textosDoContexto(contexto)
   const faltando = TEXTOS_DO_CONTEXTO.filter((t) => !escritos.some((e) => e.campo === t.campo)).map((t) => t.nome)
   const versao = contexto.version ? ` (versão ${contexto.version})` : ''
   return [

@@ -4,7 +4,6 @@ import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeAutomacao } from './automacao-tipos'
-import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeDescobertas } from './descobertas-tipos'
@@ -136,18 +135,6 @@ export function FonteDeAutomacaoProvider({ fonte, children }: { fonte: FonteDeAu
 export function useFonteDeAutomacao(): FonteDeAutomacao {
   const fonte = useContext(ContextoDaFonteDeAutomacao)
   if (!fonte) throw new Error('useFonteDeAutomacao precisa de um FonteDeAutomacaoProvider')
-  return fonte
-}
-
-const ContextoDaFonteDoPlaybook = createContext<FonteDoPlaybook | null>(null)
-
-export function FonteDoPlaybookProvider({ fonte, children }: { fonte: FonteDoPlaybook; children: ReactNode }) {
-  return <ContextoDaFonteDoPlaybook.Provider value={fonte}>{children}</ContextoDaFonteDoPlaybook.Provider>
-}
-
-export function useFonteDoPlaybook(): FonteDoPlaybook {
-  const fonte = useContext(ContextoDaFonteDoPlaybook)
-  if (!fonte) throw new Error('useFonteDoPlaybook precisa de um FonteDoPlaybookProvider')
   return fonte
 }
 

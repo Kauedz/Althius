@@ -3,7 +3,6 @@
 
 import type { Ambiente } from './ambiente'
 import { criarFonteDeAutomacaoSimulada } from './simulada-automacao'
-import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
 import { criarFonteDoContextoDaEmpresaSimulada } from './simulada-contexto-da-empresa'
 import { criarFonteSimulada } from './simulada'
 import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
@@ -31,7 +30,6 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeSinais,
     fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
-    fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDoContextoDaEmpresa: criarFonteDoContextoDaEmpresaSimulada(),
     fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
     fonteDeDescobertas: criarFonteDeDescobertasSimulada({ armazenamento, fonteDeContas }),

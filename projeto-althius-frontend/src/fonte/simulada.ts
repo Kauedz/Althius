@@ -26,6 +26,7 @@ import {
   type NovoAviso,
 } from './regras-avisos'
 import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo, maiuscula } from './regras-memoria'
+import { ENDERECO_DO_CONTEXTO } from './contexto-no-onboarding'
 import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
 import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
@@ -395,7 +396,7 @@ export function criarFonteSimulada({
     const { documento } = revisao
     const { oVigente, dele } = frasesDo(documento)
     const dependem = `as configurações que dependem ${dele}`
-    const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${documento}` }
+    const link = { rotulo: 'Ver o Contexto da empresa', para: ENDERECO_DO_CONTEXTO }
     let decidida: AprovacaoDeRevisaoDecidida
     try {
       decidida = memoriaDoWorkspace.decidir(aprovacaoId, decisao)

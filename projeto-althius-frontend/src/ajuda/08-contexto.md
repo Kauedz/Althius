@@ -1,19 +1,19 @@
 ---
 id: contexto
-titulo: Contexto do Workspace
+titulo: Contexto da empresa
 grupo: Usar a Althius
-atualizado: 14/10/2026
+atualizado: 07/11/2026
 ---
 
-O Contexto do Workspace é o que todos os Agentes sabem sobre o seu negócio: ICP, Personas, Oferta, Objeções e as outras seções do Playbook.
+O Contexto da empresa é o que todos os Agentes sabem sobre o seu negócio. Fica em Configurações → Contexto da empresa, em três textos: Empresa, Perfil de cliente ideal e Personas.
 
-## Playbook
+## Gerar pelo site
 
-O Administrador edita o Playbook e cada mudança vira uma versão nova, com histórico. Os outros participantes propõem revisões, que vão para Aprovações.
+Informe o site da empresa e clique em Gerar. A Althius lê as páginas principais e escreve os três textos. A primeira geração já vale; as próximas aparecem como sugestão, para aceitar ou descartar.
 
-## Memória do Workspace
+## Editar
 
-A Memória do Workspace mostra, só para leitura, o que os Agentes sabem hoje, com o link para editar no Playbook.
+Só o Administrador edita e salva. Cada gravação vira uma versão nova, e as próximas operações (Agentes, busca de Contas, Aderência e Sequências) passam a usá-la. Os outros participantes consultam.
 
 ## Memória do Agente
 

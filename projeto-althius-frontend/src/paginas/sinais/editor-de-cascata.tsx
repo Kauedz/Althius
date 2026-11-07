@@ -4,9 +4,11 @@ import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
-import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
 import { nichoPorLetra } from './nichos'
-import { NOME_DO_PUBLICO_RECOMENDADO, publicoRecomendado } from '@/fonte/regras-memoria'
+import { NOME_DO_PUBLICO_RECOMENDADO } from '@/fonte/regras-memoria'
+import { resumoDoPerfilDeClienteIdeal, useContextoDaEmpresaVigente } from '@/fonte/contexto-da-empresa-vigente'
+import { ENDERECO_DO_CONTEXTO } from '@/fonte/contexto-no-onboarding'
 import type { CascataDoCatalogo } from '@/fonte/sinais-tipos'
 import { SecaoDoFormulario } from './componentes'
 import { AvisoDaVarredura } from './aviso-da-varredura'
@@ -49,8 +51,8 @@ function EditorDeCascata({ cascata }: { cascata: CascataDoCatalogo }) {
   const { salvar } = useSinaisDoMockup()
   const operacional = useAmbiente().modo === 'real'
   const nicho = nichoPorLetra(cascata.icp)
-  const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
-  const recomendado = memoria ? publicoRecomendado(memoria.icp.secoes) : null
+  const contexto = useContextoDaEmpresaVigente()
+  const resumo = contexto ? resumoDoPerfilDeClienteIdeal(contexto.icp) : ''
   const [nome, setNome] = useState(cascata.nome)
   const [contas, setContas] = useState<string[]>([])
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
@@ -111,11 +113,11 @@ function EditorDeCascata({ cascata }: { cascata: CascataDoCatalogo }) {
           >
             <aside aria-label="Público recomendado" className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-4">
               <p className="text-base">{NOME_DO_PUBLICO_RECOMENDADO}</p>
-              {recomendado?.resumo && <p className="text-sm text-al-muted">{recomendado.resumo}</p>}
+              {resumo && <p className="text-sm text-al-muted">{resumo}</p>}
               <p className="text-sm text-al-muted">
-                Vem do ICP vigente na{' '}
-                <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
-                  Memória do Workspace
+                Vem do Perfil de cliente ideal do{' '}
+                <Link to={ENDERECO_DO_CONTEXTO} className="text-al-ink underline-offset-4 hover:underline">
+                  Contexto da empresa
                 </Link>
                 .
               </p>

@@ -182,12 +182,10 @@ export interface ResultadoDoAceite {
 
 export interface FonteDeDescobertas extends FonteObservavel {
   cotarBusca(maxResults?: number): Promise<CotacaoDaDescoberta>
-  criteriosDaBusca(): Promise<{ temIcp: boolean; icpVersion: number | null; icpResumo: string; criterios: CriteriosDaBusca }>
-  buscarContas(args: { criterios: CriteriosDaBusca; icpVersion: number | null; maxResults?: number; allowTesting?: boolean }): Promise<void>
-  /** Os filtros derivados do Contexto da empresa vigente, um recorte por perfil. */
-  prepararBusca?(): Promise<PreparacaoDaBusca>
+  /** Os filtros derivados do Contexto da empresa vigente, um recorte por perfil. É o único caminho da busca de Contas. */
+  prepararBusca(): Promise<PreparacaoDaBusca>
   /** Roda a busca com os perfis ajustados na tela. Recusa com `contexto_mudou` se o contexto mudou desde a preparação. */
-  buscarPorPerfis?(args: {
+  buscarPorPerfis(args: {
     perfis: Pick<PerfilDaBusca, 'nome' | 'criterios' | 'aplicados' | 'pendentes'>[]
     contextoVersao: number
     maxResults?: number

@@ -5,9 +5,49 @@ import type {
   ContaDescoberta,
   CotacaoDaDescoberta,
   FonteDeDescobertas,
+  PreparacaoDaBusca,
   ResultadoDoAceite,
 } from './descobertas-tipos'
-import { criteriosDaBuscaVazios, type CriteriosDaBusca } from './descobertas-tipos'
+import { criteriosDaBuscaVazios } from './descobertas-tipos'
+
+/**
+ * Os filtros que a Demonstração mostra na busca de Contas: um recorte por perfil do Perfil de cliente ideal de exemplo
+ * (simulada-contexto-da-empresa), com os trechos de onde saíram e o que a fonte não aplica. Como no Workspace
+ * operacional, nada vem do Playbook (contexto-da-empresa 07); aqui a tradução é fixa, sem IA.
+ */
+export const PREPARACAO_DA_DEMONSTRACAO: PreparacaoDaBusca = {
+  estado: 'pronta',
+  contextoVersao: 1,
+  fonte: 'linkedin',
+  perfis: [
+    {
+      nome: 'ICP primário: incorporadoras residenciais com operação comercial própria',
+      criterios: { ...criteriosDaBuscaVazios(), setores: ['Imobiliário'], palavrasChave: ['incorporadora'] },
+      aplicados: [
+        { conceito: 'setor', valor: 'Imobiliário', trecho: 'incorporadoras residenciais com operação comercial própria' },
+        { conceito: 'palavraChave', valor: 'incorporadora', trecho: 'incorporadoras residenciais com operação comercial própria' },
+      ],
+      pendentes: [
+        {
+          conceito: 'atuacao',
+          valor: 'mais de uma cidade',
+          trecho: 'Lançam vários empreendimentos por ano, em mais de uma cidade.',
+          motivo: 'sem_suporte_na_fonte',
+          explicacao: 'A fonte não informa onde a empresa atua: fica para verificar depois, sem confirmar a Aderência.',
+        },
+      ],
+    },
+    {
+      nome: 'ICP secundário: construtoras que passaram a incorporar',
+      criterios: { ...criteriosDaBuscaVazios(), setores: ['Construção'], palavrasChave: ['incorporação'] },
+      aplicados: [
+        { conceito: 'setor', valor: 'Construção', trecho: 'construtoras que passaram a incorporar' },
+        { conceito: 'palavraChave', valor: 'incorporação', trecho: 'construtoras que passaram a incorporar' },
+      ],
+      pendentes: [],
+    },
+  ],
+}
 
 /** Como a Demonstração escreve uma candidata: sem origem, é da busca; sem Sinais reais, não tem motivos de Sinal. */
 type CandidataDaDemonstracao = Omit<ContaDescoberta, 'origem' | 'motivosDeSinal'> & Partial<Pick<ContaDescoberta, 'origem' | 'motivosDeSinal'>>
@@ -150,13 +190,8 @@ export function criarFonteDeDescobertasSimulada({
   const notificar = () => ouvintes.forEach((o) => o())
 
   return {
-    async criteriosDaBusca() {
-      return {
-        temIcp: true,
-        icpVersion: 1,
-        icpResumo: 'Setor: Logística e tecnologia\nPorte: 11-200\nRegião: SP, PR',
-        criterios: { ...criteriosDaBuscaVazios(), setores: ['Logística e tecnologia'], portes: ['11-50', '51-200'], regioes: ['SP', 'PR'] },
-      }
+    async prepararBusca(): Promise<PreparacaoDaBusca> {
+      return structuredClone(PREPARACAO_DA_DEMONSTRACAO)
     },
     async cotarBusca(_maxResults = 50): Promise<CotacaoDaDescoberta> {
       return {
@@ -168,7 +203,7 @@ export function criarFonteDeDescobertasSimulada({
       }
     },
 
-    async buscarContas(_args: { criterios: CriteriosDaBusca; icpVersion: number | null; maxResults?: number; allowTesting?: boolean }): Promise<void> {
+    async buscarPorPerfis(): Promise<void> {
       if (saldo < 5) {
         throw new Error('Sem créditos suficientes para buscar novas contas.')
       }
@@ -180,21 +215,25 @@ export function criarFonteDeDescobertasSimulada({
       const nova: ContaDescoberta = {
         id: `desc-${Date.now()}`,
         state: 'nova',
-        nome: 'AgroTech Soluções de Precisão',
-        website: 'https://agrotechsolucoes.com.br',
-        dominio: 'agrotechsolucoes.com.br',
+        nome: 'Vértice Incorporadora',
+        website: 'https://verticeincorporadora.com.br',
+        dominio: 'verticeincorporadora.com.br',
         cnpj: '12.345.678/0001-90',
-        linkedinUrl: 'https://linkedin.com/company/agrotech-solucoes',
-        localizacao: 'Ribeirão Preto, SP',
-        uf: 'SP',
-        setor: 'Agronegócio e Tecnologia',
+        linkedinUrl: 'https://linkedin.com/company/vertice-incorporadora',
+        localizacao: 'Belo Horizonte, MG',
+        uf: 'MG',
+        setor: 'Imobiliário',
         tamanho: '50-100 funcionários',
-        funcionarios: 60,
-        descricao: 'Sensores IoT e monitoramento remoto de lavouras e frotas agrícolas.',
-        tags: ['agritech', 'iot', 'sp'],
-        fitLevel: 'alto',
-        motivos: ['Setor: Agronegócio', 'Porte: 50-100 funcionários', 'Localização: São Paulo'],
-        sinais: [{ frase: 'Captação Seed anunciada recentemente', fonte: 'noticias', data: '2026-10-01' }],
+        funcionarios: 80,
+        descricao: 'Incorporadora residencial com equipe de vendas própria e lançamentos em Belo Horizonte e Contagem.',
+        tags: ['incorporadora', 'residencial', 'mg'],
+        fitLevel: 'medio',
+        motivos: [
+          'Setor: Imobiliário',
+          'Palavra-chave: incorporadora',
+          'A verificar na qualificação: Atuação em mais de uma cidade (a fonte não traz esse dado)',
+        ],
+        sinais: [{ frase: 'Novo lançamento residencial anunciado', fonte: 'noticias', data: '2026-10-01' }],
         origem: 'busca',
         motivosDeSinal: [],
         criadaEm: new Date().toISOString(),

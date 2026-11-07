@@ -91,9 +91,9 @@ const PISTAS_DO_NICHO: Record<string, readonly string[]> = {
   'agro-b2b': ['agro', 'agricol', 'cooperativa', 'rural', 'safra'],
 }
 
-/** O nicho que os Segmentos do ICP do Workspace descrevem, ou nenhum quando o texto não aponta um. */
-export function nichoDoWorkspace(segmentos: string): Nicho | undefined {
-  const texto = normalizar(segmentos)
+/** O nicho que o Perfil de cliente ideal do Contexto da empresa descreve, ou nenhum quando o texto não aponta um. */
+export function nichoDoWorkspace(perfilDeClienteIdeal: string): Nicho | undefined {
+  const texto = normalizar(perfilDeClienteIdeal)
   if (!texto.trim()) return undefined
   let melhor: { nicho: Nicho; pistas: number } | undefined
   for (const nicho of NICHOS) {

@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import { request } from '@playwright/test'
 import { ambiente, segredo } from './ambiente.js'
-import { ICP_DO_PLAYBOOK_DO_QA } from './fixture-icp.js'
+import { ICP_DO_CONTEXTO_DO_QA } from './fixture-icp.js'
 import { ESTADO_DO_NAVEGADOR, PASTA_DA_SESSAO, salvarToken } from './sessao.js'
 
 export default async function globalSetup() {
@@ -47,22 +47,29 @@ export default async function globalSetup() {
 }
 
 /**
- * Garante o texto da seção ICP do Playbook do Workspace QA, com a mesma RPC da tela e a sessão do QA (Administrador).
- * Salvar cria uma versão nova da seção e nunca altera nem apaga uma versão existente.
+ * Garante o Perfil de cliente ideal do Contexto da empresa do Workspace QA, com a mesma RPC da tela e a sessão do QA
+ * (Administrador). Salvar cria uma versão nova do contexto, mantendo a Empresa e as Personas, e nunca altera nem apaga
+ * uma versão existente (contexto-da-empresa 07: o Playbook não é mais lido).
  */
 async function garantirIcpDoQa(http: Awaited<ReturnType<typeof request.newContext>>, e: ReturnType<typeof ambiente>, token: string) {
   const cabecalhos = { apikey: e.publishableKey, Authorization: `Bearer ${token}` }
-  const leitura = await http.post(`${e.supabaseUrl}/rest/v1/rpc/get_playbook_section`, {
+  const leitura = await http.post(`${e.supabaseUrl}/rest/v1/rpc/get_company_context`, {
     headers: cabecalhos,
-    data: { p_workspace_id: e.workspaceId, p_section: 'icp' },
+    data: { p_workspace_id: e.workspaceId },
   })
-  if (!leitura.ok()) throw new Error(`Não deu para ler a seção ICP do Playbook do Workspace QA (HTTP ${leitura.status()}).`)
-  const secao = (await leitura.json()) as { content?: { texto?: unknown } | null }
-  if (typeof secao.content?.texto === 'string' && secao.content.texto.startsWith(ICP_DO_PLAYBOOK_DO_QA)) return
+  if (!leitura.ok()) throw new Error(`Não deu para ler o Contexto da empresa do Workspace QA (HTTP ${leitura.status()}).`)
+  const contexto = (await leitura.json()) as { version?: number | null; empresa?: string; icp?: string; personas?: string }
+  if (typeof contexto.icp === 'string' && contexto.icp.startsWith(ICP_DO_CONTEXTO_DO_QA)) return
 
-  const gravacao = await http.post(`${e.supabaseUrl}/rest/v1/rpc/save_playbook_section`, {
+  const gravacao = await http.post(`${e.supabaseUrl}/rest/v1/rpc/save_company_context`, {
     headers: cabecalhos,
-    data: { p_workspace_id: e.workspaceId, p_section: 'icp', p_content: { texto: ICP_DO_PLAYBOOK_DO_QA, linhas: [] } },
+    data: {
+      p_workspace_id: e.workspaceId,
+      p_empresa: contexto.empresa ?? '',
+      p_icp: ICP_DO_CONTEXTO_DO_QA,
+      p_personas: contexto.personas ?? '',
+      p_expected_version: contexto.version ?? null,
+    },
   })
-  if (!gravacao.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA no Playbook (HTTP ${gravacao.status()}).`)
+  if (!gravacao.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA no Contexto da empresa (HTTP ${gravacao.status()}).`)
 }

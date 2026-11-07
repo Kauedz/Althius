@@ -1,5 +1,5 @@
-// signal-plan publicado: com o ICP do QA na seção ICP do Playbook (setor, porte e geografia por extenso), o Plano
-// proposto pela IA reflete o ICP (ADR-0034).
+// signal-plan publicado: com o ICP do QA no Perfil de cliente ideal do Contexto da empresa (setor, porte e geografia por
+// extenso), o Plano proposto pela IA reflete o ICP (ADR-0035).
 // A função só propõe; quem grava é save_signal_plan, que este teste nunca chama. Nada é ativado nem cobrado.
 // Conta 1 no limite de 20 Planos por dia do Workspace QA.
 import { expect, test } from '@playwright/test'

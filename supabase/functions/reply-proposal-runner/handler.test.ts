@@ -31,10 +31,12 @@ const CONTEXTO: ContextoDaResposta = {
     { direction: 'enviada', at: '2026-10-01T10:00:00Z', subject: 'Apresentação', text: 'Olá, Maria. Posso mostrar a plataforma?' },
     { direction: 'recebida', at: '2026-10-01T15:00:00Z', subject: 'Re: Apresentação', text: 'Pode mandar o preço para 20 usuários?' },
   ],
-  playbook: [
-    { section: 'empresa', name: 'Empresa', content: { texto: 'Vendemos software de planejamento.' } },
-    { section: 'icp', name: 'ICP', content: { texto: 'Construtoras de médio porte.' } },
-  ],
+  contexto: {
+    version: 3,
+    empresa: 'Vendemos software de planejamento.',
+    icp: 'Construtoras de médio porte.',
+    personas: 'Diretora de obras, que decide a compra.',
+  },
   agent: { name: 'Rhetor', instructions: 'Seja breve.', voice_tone: 'Consultivo e caloroso' },
 }
 
@@ -362,22 +364,38 @@ Deno.test('o pedido e as instruções não carregam mais que o contexto recebido
   assertStringIncludes(pedido, 'Canal: e-mail')
   // A ordem da conversa: o que o vendedor enviou vem antes do que o Contato respondeu.
   assert(pedido.indexOf('Posso mostrar a plataforma?') < pedido.indexOf('Pode mandar o preço'))
-  const vazio = instrucoesDoRhetor({ ...CONTEXTO, playbook: [], agent: {}, seller: null })
+  const vazio = instrucoesDoRhetor({ ...CONTEXTO, contexto: { version: null, empresa: '', icp: '', personas: '' }, agent: {}, seller: null })
   assertStringIncludes(vazio, 'Você é o Rhetor')
-  assertStringIncludes(vazio, 'não tem seções escritas')
+  assertStringIncludes(vazio, 'O Workspace ainda não tem Contexto da empresa')
   assertStringIncludes(vazio, 'sem inventar um nome')
 })
 
-Deno.test('com o Playbook e as instruções no máximo, o sistema ainda cabe na fila do Hermes', () => {
+Deno.test('o rascunho escreve pelos três textos do Contexto da empresa, com a versão, e não fala mais do Playbook', () => {
+  const sistema = instrucoesDoRhetor(CONTEXTO)
+  assertStringIncludes(sistema, 'Contexto da empresa (versão 3)')
+  assertStringIncludes(sistema, '### Empresa\nVendemos software de planejamento.')
+  assertStringIncludes(sistema, '### Perfil de cliente ideal\nConstrutoras de médio porte.')
+  assertStringIncludes(sistema, '### Personas\nDiretora de obras, que decide a compra.')
+  assert(!/playbook/i.test(sistema), 'o Playbook não aparece mais no sistema')
+  const soEmpresa = instrucoesDoRhetor({ ...CONTEXTO, contexto: { ...CONTEXTO.contexto!, icp: ' ', personas: '' } })
+  assertStringIncludes(soEmpresa, '### Empresa')
+  assert(!soEmpresa.includes('### Personas'), 'texto vazio não entra')
+})
+
+Deno.test('sem `contexto` (banco antes da migration), o rascunho segue como sem Contexto da empresa', () => {
+  const { contexto: _sem, ...antigo } = CONTEXTO
+  const sistema = instrucoesDoRhetor(antigo)
+  assertStringIncludes(sistema, 'O Workspace ainda não tem Contexto da empresa')
+})
+
+Deno.test('com o Contexto da empresa e as instruções no máximo, o sistema ainda cabe na fila do Hermes', () => {
   const sistema = instrucoesDoRhetor({
     ...CONTEXTO,
     workspace: 'W'.repeat(200),
-    playbook: Array.from({ length: 12 }, (_, i) => ({
-      section: `secao-${i}`, name: `Seção ${i}`, content: { texto: 'p'.repeat(5000) },
-    })),
+    contexto: { version: 9, empresa: 'e'.repeat(40_000), icp: 'i'.repeat(40_000), personas: 'p'.repeat(40_000) },
     agent: { name: 'R'.repeat(200), instructions: 'i'.repeat(4000), voice_tone: 't'.repeat(500) },
   })
-  assertStringIncludes(sistema, 'o Playbook foi cortado por ser longo')
+  assertStringIncludes(sistema, 'o Contexto da empresa foi cortado por ser longo')
   assert(sistema.length <= MAX_CARACTERES_DO_SISTEMA_NA_FILA, `sistema com ${sistema.length} caracteres`)
 })
 

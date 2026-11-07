@@ -61,6 +61,13 @@ export const ehRevisaoDoPlaybook = (aprovacao: AprovacaoDaFila): aprovacao is Ap
   aprovacao.revisao?.tipo === 'playbook'
 
 /**
+ * Se a Aprovação espera uma decisão. A revisão do Playbook pendente não espera: o Playbook foi substituído pelo
+ * Contexto da empresa (contexto-da-empresa 07), e ela fica só como registro até vencer.
+ */
+export const aguardaDecisao = (aprovacao: AprovacaoDaFila): boolean =>
+  aprovacao.estado === 'pendente' && !ehRevisaoDoPlaybook(aprovacao)
+
+/**
  * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador. As de
  * ação, na Demonstração, qualquer participante ativo; no Workspace operacional, também só um Administrador, e o banco
  * recusa a decisão de um Membro (decisão do Nan, 2026-10-01). Sem o ambiente, vale a regra do Workspace operacional.

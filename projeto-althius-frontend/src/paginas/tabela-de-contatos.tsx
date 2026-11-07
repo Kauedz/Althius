@@ -1,10 +1,8 @@
-import { Popover } from '@base-ui/react/popover'
 import { createLucideIcon, Mail, Phone, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { canaisAdicionais } from '@/fonte/canais-do-contato'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
-import { useDados, useFonteDeContas } from '@/fonte/contexto'
-import type { SecaoDoDocumento } from '@/fonte/tipos'
+import { useFonteDeContas } from '@/fonte/contexto'
 import { cn } from '@/lib/utils'
 import { AcoesDoContato } from './arquivar-e-apagar'
 import { BotaoDeFotoDoContato } from './botao-de-foto-do-contato'
@@ -58,8 +56,6 @@ export function TabelaDeContatos({
   /** Marca ou desmarca um Contato na seleção; sem isto a coluna Nome não ganha caixa de seleção. */
   aoAlternarSelecao?: (contatoId: string) => void
 }) {
-  // A Persona do Contato aponta para a definição vigente na Memória do Workspace, lida uma vez para a tabela toda.
-  const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas.secoes
   // Editar, arquivar e apagar (CRM-18) só existem onde a fonte os oferece: a Demonstração não ganha coluna.
   const fonteDeContas = useFonteDeContas()
   const comAcoes = !!(fonteDeContas.editarContato || fonteDeContas.arquivarContato || fonteDeContas.apagarContato)
@@ -146,7 +142,7 @@ export function TabelaDeContatos({
               <TextoOuTraco texto={contato.area} />
             </td>
             <td className={CELULA}>
-              <CelulaPersona persona={contato.persona} personas={personas} />
+              <TextoOuTraco texto={contato.persona} />
             </td>
             <td className={CELULA}>
               <DadosDeContato canais={contato.canais} adicionais={canaisAdicionais(contato)} />
@@ -178,33 +174,6 @@ function TextoOuTraco({ texto }: { texto?: string }) {
     <span title={texto} className="block truncate">
       {texto}
     </span>
-  )
-}
-
-/**
- * A Persona do Contato, ou "—" sem Persona. O nome abre a definição vigente dela na Memória do Workspace, lida a cada
- * abertura da tabela: o Contato guarda só o nome.
- */
-function CelulaPersona({ persona, personas }: { persona?: string; personas?: SecaoDoDocumento[] }) {
-  const definicao = personas?.find((p) => p.titulo === persona)?.texto
-  if (!persona || !definicao) return <TextoOuTraco texto={persona} />
-  return (
-    <Popover.Root>
-      <Popover.Trigger className="block max-w-full cursor-pointer truncate text-left underline decoration-al-muted/60 decoration-dotted underline-offset-2 hover:decoration-al-ink">
-        {persona}
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
-          <Popover.Popup className="rounded-xl flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 border border-al-line bg-al-surface p-4 text-sm text-al-ink shadow-md outline-none">
-            <Popover.Title className="font-normal">{persona}</Popover.Title>
-            <Popover.Description className="leading-relaxed text-al-muted">{definicao}</Popover.Description>
-            <Link to="/configuracoes/memoria/personas" className="rotulo text-al-ink underline-offset-4 hover:underline">
-              Ver na Memória do Workspace
-            </Link>
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
   )
 }
 

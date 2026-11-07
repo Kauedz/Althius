@@ -26,7 +26,7 @@ Falhas, em palavras do produto na tela: `site_insuficiente` (o site não basta; 
 
 ## Custo
 
-Ler o site não cobra crédito, como a leitura do onboarding (`icp-site-read`). O custo do motor fica registrado na Geração.
+Ler o site não cobra crédito. O custo do motor fica registrado na Geração.
 
 ## Testes e avaliação
 

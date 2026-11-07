@@ -1,7 +1,6 @@
 import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw, RadioTower } from 'lucide-react'
 import { Fragment, useEffect, useId, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AvisoDoContextoPendente } from '@/components/aviso-do-contexto-pendente'
 import { Pagina } from '@/components/pagina'
 import { PorQueEssaAderencia } from '@/components/por-que-essa-aderencia'
 import type { ExplicacaoDeAderencia } from '@/fonte/aderencia-explicada'
@@ -28,8 +27,6 @@ import {
   type CodigoDoDescarte,
 } from '@/fonte/aprendizado-da-descoberta'
 import { cn } from '@/lib/utils'
-import { EtiquetasDeTexto } from '@/components/etiquetas-de-texto'
-import { SelecaoMultipla } from '@/components/selecao-multipla'
 import { PORTES_DA_RECEITA, PORTES_DO_ICP, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
 import { useDadosDoBrasil } from './sinais/dados-do-brasil'
 import { AbasDoModulo, CABECALHO, CampoDeBusca, CELULA, Contagem } from './modulo-contas-e-contatos'
@@ -159,8 +156,6 @@ export function PaginaDescobertas() {
   const [estadoAba, setEstadoAba] = useState<EstadoContaDescoberta>('nova')
   const [busca, setBusca] = useState('')
   const [pedindoBusca, setPedindoBusca] = useState(false)
-  const [criteriosBusca, setCriteriosBusca] = useState<{ criterios: CriteriosDaBusca; icpVersion: number | null; resumo: string; temIcp: boolean } | null>(null)
-  const [criteriosEditados, setCriteriosEditados] = useState<CriteriosDaBusca | null>(null)
   // A busca pelo Contexto da empresa: aberta (preparação nula enquanto o servidor lê o Perfil de cliente ideal).
   const [buscaPeloContexto, setBuscaPeloContexto] = useState<{ preparacao: PreparacaoDaBusca | null } | null>(null)
   const [erroDaBusca, setErroDaBusca] = useState<ErroNaTela | null>(null)
@@ -260,7 +255,6 @@ export function PaginaDescobertas() {
 
   /** Pede ao servidor os filtros do Contexto da empresa vigente. Não conseguir ler é um erro próprio, com nova tentativa. */
   async function prepararPeloContexto() {
-    if (!fonte?.prepararBusca) return
     setErroDaBusca(null)
     setBuscaPeloContexto({ preparacao: null })
     try {
@@ -273,7 +267,7 @@ export function PaginaDescobertas() {
 
   async function buscarPeloContexto(perfis: PerfilParaBuscar[]) {
     const preparacao = buscaPeloContexto?.preparacao
-    if (!fonte?.buscarPorPerfis || !preparacao || preparacao.contextoVersao === null) return
+    if (!fonte || !preparacao || preparacao.contextoVersao === null) return
     if (cotacao?.estadoDoActor === 'testing' && !cotacao.podeTestar) {
       setErroDaBusca({ mensagem: 'A fonte desta busca ainda está em validação pela equipe Althius.' })
       return
@@ -300,23 +294,10 @@ export function PaginaDescobertas() {
     }
   }
 
+  // A busca de Contas sai sempre do Contexto da empresa vigente (contexto-da-empresa 04 e 07): o diálogo antigo, com os
+  // filtros lidos do ICP do Playbook, saiu.
   async function dispararBusca() {
-    if (!fonte) return
-    if (fonte.prepararBusca && fonte.buscarPorPerfis) {
-      await prepararPeloContexto()
-      return
-    }
-    setPedindoBusca(true)
-    setErroAcao(null)
-    try {
-      const resultado = await fonte.criteriosDaBusca()
-      setCriteriosBusca({ criterios: resultado.criterios, icpVersion: resultado.icpVersion, resumo: resultado.icpResumo, temIcp: resultado.temIcp })
-      setCriteriosEditados(resultado.criterios)
-    } catch (e) {
-      setErroAcao(e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.')
-    } finally {
-      setPedindoBusca(false)
-    }
+    await prepararPeloContexto()
   }
 
   // Região no formato que a busca já entende (account-discovery/regioes.ts): "Brasil", a sigla da UF ou "Cidade, UF".
@@ -337,28 +318,6 @@ export function PaginaDescobertas() {
       valor,
       rotulo: ROTULOS_DOS_PORTES[valor] ?? valor,
     }))
-  const opcoesDeSetor = [...new Set([...(criteriosBusca?.criterios.setores ?? []), ...SETORES_DA_BUSCA])].map((valor) => ({ valor }))
-  const criteriosDoDialog = criteriosEditados ?? criteriosBusca?.criterios ?? null
-  const criteriosValidos = criteriosDoDialog ? criteriosDoDialog.setores.length > 0 || criteriosDoDialog.palavrasChave.length > 0 : false
-
-  async function confirmarBusca() {
-    if (!criteriosBusca || !criteriosDoDialog || !criteriosValidos) return
-    setPedindoBusca(true)
-    setErroAcao(null)
-    try {
-      const allowTesting = cotacao?.estadoDoActor === 'testing' && cotacao.podeTestar
-      if (cotacao?.estadoDoActor === 'testing' && !cotacao.podeTestar) {
-        setErroAcao('A fonte desta busca ainda está em validação pela equipe Althius.')
-        return
-      }
-      await fonte.buscarContas({ criterios: criteriosDoDialog, icpVersion: criteriosBusca.icpVersion, allowTesting })
-      setCriteriosBusca(null)
-      recarregarCotacao()
-      recarregarLista()
-    } catch (e) {
-      setErroAcao(e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.')
-    } finally { setPedindoBusca(false) }
-  }
 
   async function aceitar(candidata: ContaDescoberta, url?: string) {
     setErroAcao(null)
@@ -488,7 +447,7 @@ export function PaginaDescobertas() {
 
         <AvisoDaUltimaBusca ultima={ultimaBusca} />
 
-        {erroAcao && !criteriosBusca && (
+        {erroAcao && (
           <p role="alert" className="text-xs text-al-atencao">
             {erroAcao}
           </p>
@@ -848,68 +807,6 @@ export function PaginaDescobertas() {
                 Confirmar e Aceitar
               </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {criteriosBusca && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-label="Confirmar filtros da busca" className="rounded-2xl w-full max-w-lg border border-al-line bg-al-surface p-6 shadow-xl">
-            <h3 className="text-base font-semibold text-al-ink">Confirmar filtros da busca</h3>
-            <p className="mt-1 text-xs text-al-muted">Do seu ICP{criteriosBusca.resumo ? `: ${criteriosBusca.resumo}` : '.'}</p>
-            <div className="mt-3"><AvisoDoContextoPendente operacao="A busca pelo ICP" /></div>
-            <div className="mt-4 grid gap-3">
-              {criteriosDoDialog && (
-                <>
-                  <SelecaoMultipla
-                    rotulo="Setores"
-                    opcoes={opcoesDeSetor}
-                    selecionadas={criteriosDoDialog.setores}
-                    aoMudar={(setores) => setCriteriosEditados({ ...criteriosDoDialog, setores })}
-                  />
-                  <EtiquetasDeTexto
-                    rotulo="Palavras-chave"
-                    valores={criteriosDoDialog.palavrasChave}
-                    aoMudar={(palavrasChave) => setCriteriosEditados({ ...criteriosDoDialog, palavrasChave })}
-                  />
-                  <SelecaoMultipla
-                    rotulo="Porte (faixas)"
-                    opcoes={opcoesDePorte(criteriosDoDialog.fonte)}
-                    selecionadas={criteriosDoDialog.portes}
-                    aoMudar={(portes) => setCriteriosEditados({ ...criteriosDoDialog, portes })}
-                  />
-                  {dadosDoBrasil ? (
-                    <SelecaoMultipla
-                      rotulo="Região"
-                      opcoes={opcoesDeRegiao}
-                      selecionadas={criteriosDoDialog.regioes}
-                      aoMudar={(regioes) => setCriteriosEditados({ ...criteriosDoDialog, regioes })}
-                      dica="Buscar estado ou cidade"
-                    />
-                  ) : (
-                    <Carregando rotulo="Carregando as localidades" />
-                  )}
-                  {criteriosDoDialog.fonte === 'receita' && dadosDoBrasil && (
-                    <SelecaoMultipla
-                      rotulo="CNAEs"
-                      opcoes={opcoesDeCnae}
-                      selecionadas={criteriosDoDialog.cnaes}
-                      aoMudar={(cnaes) => setCriteriosEditados({ ...criteriosDoDialog, cnaes })}
-                      dica="Buscar por código ou descrição"
-                    />
-                  )}
-                  <EtiquetasDeTexto
-                    rotulo="Excluir"
-                    valores={criteriosDoDialog.excluir}
-                    aoMudar={(excluir) => setCriteriosEditados({ ...criteriosDoDialog, excluir })}
-                  />
-                </>
-              )}
-            </div>
-            {!criteriosBusca.temIcp || !criteriosValidos ? <p className="mt-3 text-xs text-al-atencao">Informe ao menos um setor ou uma palavra-chave. <Link className="underline" to="/configuracoes/playbook/icp">Edite o ICP em Configurações</Link>.</p> : null}
-            <p className="mt-3 text-xs text-al-muted">Custo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.creditos) : 'calculando'} · Saldo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.saldoDisponivel) : 'calculando'}</p>
-            {erroAcao && <p role="alert" className="mt-3 text-xs text-al-atencao">{erroAcao}</p>}
-            <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setCriteriosBusca(null); setErroAcao(null) }}>Cancelar</Button><Button type="button" disabled={!criteriosValidos || pedindoBusca} onClick={confirmarBusca} className="bg-al-accent text-al-on-accent hover:bg-al-accent-2">Confirmar</Button></div>
           </div>
         </div>
       )}

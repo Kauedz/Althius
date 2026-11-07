@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 import { armazenamentoEmMemoria } from '@/test/armazenamento'
@@ -93,15 +93,11 @@ describe('Plano do Workspace', () => {
 
   it('uma Execução nova entra no período; decidir Aprovações não conta como Execução', async () => {
     const armazenamento = armazenamentoEmMemoria()
-    const { usuario, unmount } = abrir('/configuracoes/memoria', { armazenamento })
+    const { usuario, unmount, fonte } = abrir('/configuracoes/perfil', { armazenamento })
 
-    // Pedir a revisão do ICP é uma Conversa com o Scopus: uma Execução dele.
-    await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Scopus' }))
-    const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão do ICP' }))
-    await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), 'Incluir a Colômbia.')
-    await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Scopus' }))
-    await dialogo.findByText(/aguardando a decisão de um Administrador/)
-    await usuario.keyboard('{Escape}')
+    // Pedir a revisão do ICP é uma Conversa com o Scopus: uma Execução dele. A tela da Memória do Workspace saiu
+    // (contexto-da-empresa 07); o pedido vai pela fonte simulada.
+    await act(() => fonte.solicitarRevisao('icp', 'Incluir a Colômbia.'))
     await irPara(usuario, 'Plano')
     expect(await (await indicador('Execuções de Agentes')).findByText('231')).toBeInTheDocument()
     expect(screen.getByRole('row', { name: 'Scopus 93' })).toBeInTheDocument()
@@ -122,11 +118,11 @@ describe('Plano do Workspace', () => {
     unmount()
 
     // Depois de recarregar, a revisão continua na fila e a Execução que a propôs continua no período e no Scopus.
-    const { fonte } = abrir('/configuracoes/plano', { armazenamento })
+    const recarregada = abrir('/configuracoes/plano', { armazenamento })
     expect(await (await indicador('Execuções de Agentes')).findByText('231')).toBeInTheDocument()
     expect(screen.getByRole('row', { name: 'Scopus 93' })).toBeInTheDocument()
     const semARevisao = await criarFonteSimulada({ atrasoMs: 0 }).agente('scopus')
-    expect((await fonte.agente('scopus')).execucoes).toBe(semARevisao.execucoes + 1)
+    expect((await recarregada.fonte.agente('scopus')).execucoes).toBe(semARevisao.execucoes + 1)
   })
 
   it('quem não participa do Workspace vê só o plano, sem o uso, como em Pessoas e acesso', async () => {

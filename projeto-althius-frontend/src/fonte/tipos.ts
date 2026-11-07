@@ -1,6 +1,6 @@
 import type { Aderencia } from './contas-tipos'
 import type { ResumoDeConversa } from './conversas-tipos'
-import type { ConteudoDoPlaybook, IdDaSecaoDoPlaybook } from './playbook-tipos'
+import type { IdDaSecaoDoPlaybook } from './playbook-tipos'
 
 // Tipos do domínio, com o vocabulário do CONTEXT.md na raiz do repositório.
 
@@ -533,8 +533,9 @@ export type AprovacaoDeRevisaoDecidida = AprovacaoBase & { estado: Decisao; revi
 
 /**
  * A revisão de uma seção do Playbook no Workspace operacional (CRM-09): o Scopus ou o Ethos propôs, numa Conversa, uma
- * nova versão de uma seção da Especialidade dele. Pendente, traz o conteúdo proposto; depois, só o registro: a versão
- * que a aprovação gravou e quem decidiu. O conteúdo aprovado passa a ser a versão vigente da seção.
+ * nova versão de uma seção da Especialidade dele. O Playbook foi substituído pelo Contexto da empresa
+ * (contexto-da-empresa 07): a revisão fica só como registro em Aprovações (a seção, a versão que uma aprovação gravou e
+ * quem decidiu), e a que ainda estiver pendente não é mais decidida pela tela; ela vence sozinha.
  */
 export interface RevisaoDoPlaybook {
   tipo: 'playbook'
@@ -542,8 +543,6 @@ export interface RevisaoDoPlaybook {
   secao: IdDaSecaoDoPlaybook
   /** A versão vigente quando o Agente propôs; 0 quando a seção ainda não tinha versão. */
   versaoBase: number
-  /** O conteúdo proposto, só enquanto pendente. */
-  proposto: ConteudoDoPlaybook | null
   /** A versão que a aprovação gravou no Playbook. */
   versaoGravada: number | null
   /** A Conta de usuário de quem decidiu, quando alguém decidiu. */

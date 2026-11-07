@@ -3,7 +3,7 @@
 // nenhum: o banco já grava a versão ao aprovar. As ações seguem como antes.
 import { describe, expect, it } from 'vitest'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
-import { ehRevisaoDoPlaybook, podeDecidir, categoriaDa } from './regras'
+import { aguardaDecisao, ehRevisaoDoPlaybook, podeDecidir, categoriaDa } from './regras'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 
 const ANA = { id: 'usuario-ana', email: 'ana@cliente.com.br' }
@@ -44,7 +44,7 @@ function fonte(linhas: Record<string, unknown>[]) {
 }
 
 describe('A revisão do Playbook na fila de Aprovações (CRM-09)', () => {
-  it('a revisão pendente traz a seção, a versão de partida e o conteúdo proposto, sem Integração', async () => {
+  it('a revisão pendente traz a seção e a versão de partida, sem Integração e sem o conteúdo (o Playbook foi retirado)', async () => {
     const { f } = fonte([revisao('pendente'), acao])
     const [pendente, envio] = await f.aprovacoes()
     expect(ehRevisaoDoPlaybook(pendente)).toBe(true)
@@ -57,12 +57,13 @@ describe('A revisão do Playbook na fila de Aprovações (CRM-09)', () => {
         tipo: 'playbook',
         secao: 'icp',
         versaoBase: 2,
-        proposto: { texto: 'Indústrias de 200 a 500 pessoas', linhas: [{ segmento: 'Indústria' }] },
         versaoGravada: null,
         decididaPor: null,
       },
     })
     expect('integracaoId' in pendente).toBe(false)
+    expect(ehRevisaoDoPlaybook(pendente) && 'proposto' in pendente.revisao).toBe(false)
+    expect(aguardaDecisao(pendente)).toBe(false)
     // A ação continua como era.
     expect(ehRevisaoDoPlaybook(envio)).toBe(false)
     expect(envio).toMatchObject({ integracaoId: 'hubspot', contaId: 'conta-alfa', estado: 'pendente' })
@@ -78,7 +79,7 @@ describe('A revisão do Playbook na fila de Aprovações (CRM-09)', () => {
     ])
     const fila = await f.aprovacoes()
     expect(fila.map((a) => a.estado)).toEqual(['aprovada', 'rejeitada', 'expirada', 'cancelada', 'desatualizada'])
-    expect(fila.map((a) => (ehRevisaoDoPlaybook(a) ? a.revisao.proposto : 'ação'))).toEqual([null, null, null, null, null])
+    expect(fila.every((a) => ehRevisaoDoPlaybook(a) && !('proposto' in a.revisao))).toBe(true)
     expect(fila[0]).toMatchObject({ revisao: { versaoGravada: 3, decididaPor: 'usuario-ana' } })
   })
 

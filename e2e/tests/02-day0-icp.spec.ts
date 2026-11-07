@@ -1,11 +1,11 @@
 // Day0 operacional e ICP do Workspace.
 // 1. Day0: as respostas (papel, empresa, domínio, como conheceu) vão para save_my_day0 e voltam por get_my_day0 depois de
 //    recarregar. O QA pode estar em qualquer etapa; o teste percorre as que faltam com dados de teste e conclui o Day0.
-// 2. ICP: o texto da seção ICP do Playbook é salvo e volta depois de recarregar (ADR-0034: o ICP é o do Playbook). O texto
-//    começa pelo ICP de teste do QA, que o Plano do Sinal lê.
+// 2. ICP: o Perfil de cliente ideal do Contexto da empresa é salvo e volta depois de recarregar (ADR-0035: o Playbook saiu).
+//    O texto começa pelo ICP de teste do QA, que o Plano do Sinal lê.
 import { expect, type Page, test } from '@playwright/test'
 import { ambiente } from '../support/ambiente.js'
-import { ICP_DO_PLAYBOOK_DO_QA } from '../support/fixture-icp.js'
+import { ICP_DO_CONTEXTO_DO_QA } from '../support/fixture-icp.js'
 import { tokenDoQa } from '../support/sessao.js'
 import { esperarRpc, vigiar } from '../support/vigia.js'
 
@@ -69,22 +69,26 @@ test('Day0: as respostas salvas voltam depois de recarregar', async ({ page }, t
   await conferir()
 })
 
-test('ICP: o texto salvo no Playbook volta depois de recarregar', async ({ page }, testInfo) => {
+test('ICP: o Perfil de cliente ideal salvo no Contexto da empresa volta depois de recarregar', async ({ page }, testInfo) => {
   const conferir = vigiar(page, testInfo)
-  const texto = `${ICP_DO_PLAYBOOK_DO_QA} Salvo pela automação QA em ${new Date().toISOString()}.`
+  const texto = `${ICP_DO_CONTEXTO_DO_QA} Salvo pela automação QA em ${new Date().toISOString()}.`
+  // A entrada antiga do Playbook leva ao Contexto da empresa.
   await page.goto('/configuracoes/playbook/icp')
-  const campo = page.locator('#playbook-texto')
+  await expect(page).toHaveURL(/\/configuracoes\/contexto$/, { timeout: 20_000 })
+  const campo = page.locator('#contexto-icp')
   await expect(campo).toBeVisible({ timeout: 20_000 })
   await campo.fill(texto)
-  const salvou = esperarRpc(page, 'save_playbook_section')
+  const salvou = esperarRpc(page, 'save_company_context')
   await page.getByRole('button', { name: 'Salvar', exact: true }).click()
   expect((await salvou).status()).toBe(200)
-  await expect(page.getByText('Playbook salvo.')).toBeVisible()
+  await expect(page.getByText('Contexto salvo. A nova versão já está valendo.')).toBeVisible()
 
   await page.reload()
-  await expect(page.locator('#playbook-texto')).toHaveValue(texto, { timeout: 20_000 })
+  await expect(page.locator('#contexto-icp')).toHaveValue(texto, { timeout: 20_000 })
 
-  // O ICP não é mais lido do registro estruturado: a tela do Playbook não oferece Setor, Porte nem Região.
-  await expect(page.getByRole('region', { name: 'Campos do ICP' })).toHaveCount(0)
+  // Configurações não tem mais Playbook nem Memória do Workspace.
+  const abas = page.getByRole('navigation', { name: 'Seções de Configurações' })
+  await expect(abas.getByRole('link', { name: 'Playbook' })).toHaveCount(0)
+  await expect(abas.getByRole('link', { name: 'Memória do Workspace' })).toHaveCount(0)
   await conferir()
 })

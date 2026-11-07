@@ -20,7 +20,7 @@ describe('Documentação da Ajuda', () => {
     expect(within(pagina).getByText('Atualizado em 14/10/2026')).toBeInTheDocument()
     expect(within(pagina).getAllByRole('note').length).toBeGreaterThan(0)
     const paginas = within(screen.getByRole('navigation', { name: 'Páginas de Ajuda e informações' }))
-    for (const titulo of ['Créditos e Automação', 'Sinais', 'Descoberta', 'Contas e Comitê', 'Sequências', 'Agentes', 'Contexto do Workspace', 'Conexões']) {
+    for (const titulo of ['Créditos e Automação', 'Sinais', 'Descoberta', 'Contas e Comitê', 'Sequências', 'Agentes', 'Contexto da empresa', 'Conexões']) {
       expect(paginas.getByRole('link', { name: titulo })).toBeInTheDocument()
     }
     expect(screen.queryByText(/CRM/)).not.toBeInTheDocument()

@@ -25,8 +25,6 @@ export function PaginaDePedidoDeSinal() {
   const localizacao = useLocation()
   const { dados: pedidos, recarregar } = useDadosDeSinais((f) => f.pedidosDeSinal(), [])
   const workspace = useDados((f) => f.workspace(), [])
-  const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
-  const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
 
   const [evento, setEvento] = useState(() => {
     const estado = localizacao.state as { briefing?: unknown } | null
@@ -42,7 +40,7 @@ export function PaginaDePedidoDeSinal() {
   const [enviando, setEnviando] = useState(false)
   const [recebido, setRecebido] = useState(false)
 
-  const empresasValor = empresas ?? segmentos
+  const empresasValor = empresas ?? ''
   const nomeValor = nome ?? workspace?.usuario.nome ?? ''
   const emailValor = email ?? workspace?.usuario.email ?? ''
 

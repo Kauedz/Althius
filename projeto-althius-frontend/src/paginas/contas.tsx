@@ -1,15 +1,14 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { Archive, Building2, ExternalLink, Plus, RadioTower, Route, Upload } from 'lucide-react'
-import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
-import { useDados, useDadosDeContas, useFonteDeContas, useFonteDoPlaybook } from '@/fonte/contexto'
+import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { ContaAlvo, FonteDeContas } from '@/fonte/contas-tipos'
-import { criteriosDePassagem } from '@/fonte/criterios-de-passagem'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
@@ -248,10 +247,6 @@ function ListaContas() {
   const [loteAberto, setLoteAberto] = useState(false)
   // A vista Kanban (kanban 03) vive no parâmetro `vista` do endereço, como o recorte; sem `moverEstagio`, só a tabela.
   const kanban = !!fonte.moverEstagio && recorte.parametros.get('vista') === 'kanban'
-  // Os critérios de passagem (kanban 04) saem da seção SLA e metas; sem Playbook, o cartão segue sem eles.
-  const fonteDoPlaybook = useFonteDoPlaybook()
-  const sla = useDados(fonteDoPlaybook, (f) => f.secao('sla_e_metas').catch(() => undefined), [])
-  const criterios = useMemo(() => criteriosDePassagem(sla?.vigente?.conteudo.linhas ?? []), [sla])
 
   // As Contas arquivadas ficam fora da lista e da busca padrão (CRM-18): esta visão as mostra, para restaurar ou apagar.
   if (verArquivadas && fonte.contasArquivadas) {
@@ -395,7 +390,6 @@ function ListaContas() {
           contas={contasExibidas}
           mover={fonte.moverEstagio.bind(fonte)}
           estadoDoLink={estadoDoLink}
-          criterios={criterios}
         />
       )}
 

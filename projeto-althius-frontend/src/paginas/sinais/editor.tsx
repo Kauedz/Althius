@@ -6,10 +6,11 @@ import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
 import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
-import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
-import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
 import { CRITERIOS_DOS_SINAIS_INTERNOS, TIPOS_INTERNOS_REAIS } from '@/fonte/sinais-reais-mapa'
-import { publicoRecomendado } from '@/fonte/regras-memoria'
+import { NOME_DO_PUBLICO_RECOMENDADO } from '@/fonte/regras-memoria'
+import { resumoDoPerfilDeClienteIdeal, useContextoDaEmpresaVigente } from '@/fonte/contexto-da-empresa-vigente'
+import { ENDERECO_DO_CONTEXTO } from '@/fonte/contexto-no-onboarding'
 import { cn } from '@/lib/utils'
 import {
   CAMPOS,
@@ -925,9 +926,10 @@ function SecaoPublico({
   const modos: ModoDePublico[] = aceitaDescoberta ? ['listas', 'descoberta', 'ambos'] : ['listas']
   const comListas = publico.modo !== 'descoberta'
   const comDescoberta = publico.modo !== 'listas'
-  // O público recomendado é lido do ICP vigente a cada abertura: aprovar uma revisão do ICP o atualiza aqui.
-  const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
-  const recomendado = memoria && publicoRecomendado(memoria.icp.secoes)
+  // O público recomendado é lido do Perfil de cliente ideal do Contexto da empresa a cada abertura (contexto-da-empresa
+  // 07): salvar uma nova versão o atualiza aqui.
+  const contexto = useContextoDaEmpresaVigente()
+  const resumo = contexto ? resumoDoPerfilDeClienteIdeal(contexto.icp) : ''
 
   return (
     <SecaoDoFormulario numero="03" titulo="Público" descricao="Onde procurar os Sinais.">
@@ -936,19 +938,20 @@ function SecaoPublico({
           <Sparkles strokeWidth={1.8} className="size-3.5" aria-hidden />
           Recomendado pelas suas configurações
         </span>
-        {memoria && recomendado ? (
+        {contexto === undefined ? (
+          <Carregando />
+        ) : (
           <>
-            <p className="text-base">{recomendado.nome}</p>
+            <p className="text-base">{NOME_DO_PUBLICO_RECOMENDADO}</p>
+            {resumo && <p className="text-sm text-al-muted">{resumo}</p>}
             <p className="text-sm text-al-muted">
-              {recomendado.resumo}. Vem do ICP vigente na{' '}
-              <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
-                Memória do Workspace
+              {contexto ? 'Vem do Perfil de cliente ideal do' : 'Ainda não há Perfil de cliente ideal: escreva-o no'}{' '}
+              <Link to={ENDERECO_DO_CONTEXTO} className="text-al-ink underline-offset-4 hover:underline">
+                Contexto da empresa
               </Link>
-              , aprovado em {formatarDiaIsoPorExtenso(memoria.icp.aprovadoEm)}.
+              {contexto ? `, versão ${contexto.versao}.` : '.'}
             </p>
           </>
-        ) : (
-          <Carregando />
         )}
         {aceitaDescoberta && !comDescoberta && (
           <button type="button" onClick={() => aoMudar({ ...publico, modo: 'ambos', usaRecomendado: true })} className={cn(BOTAO_SECUNDARIO, 'self-start')}>

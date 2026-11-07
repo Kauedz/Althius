@@ -8,7 +8,7 @@ export type AreaDaFerramenta =
   | 'sequencias'
   | 'respostas'
   | 'rotinas'
-  | 'playbooks'
+  | 'contexto'
   | 'agentes'
   | 'aprovacoes'
   | 'participacoes'
@@ -51,8 +51,8 @@ export const CATALOGO_FERRAMENTAS_WHATSAPP: readonly DescritorDeFerramentaPlataf
   leitura('listar_respostas_de_email', 'list_received_emails', 'respostas'),
   leitura('listar_propostas_de_resposta', 'list_reply_proposals', 'respostas'),
   leitura('listar_rotinas', 'list_agent_routines', 'rotinas'),
-  leitura('listar_secoes_do_playbook', 'list_playbook_sections', 'playbooks'),
-  leitura('consultar_secao_do_playbook', 'get_playbook_section', 'playbooks'),
+  // O Contexto da empresa substituiu o Playbook (contexto-da-empresa 07): só leitura, toda Participação ativa.
+  leitura('consultar_contexto_da_empresa', 'get_company_context', 'contexto'),
   leitura('listar_agentes', 'list_agents', 'agentes'),
   leitura('listar_memoria_do_agente', 'list_agent_memory', 'agentes'),
   leitura('listar_aprovacoes', 'list_approvals', 'aprovacoes'),

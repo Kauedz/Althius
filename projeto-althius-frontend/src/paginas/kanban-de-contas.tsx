@@ -4,20 +4,16 @@ import { Link } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { useDados } from '@/fonte/contexto'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
-import { estagioSeguinte, type CriteriosDePassagem } from '@/fonte/criterios-de-passagem'
 import {
   ESTAGIO_SO_DO_ENVIO_AO_CRM,
   ESTAGIOS_DE_PROSPECCAO,
   eEstagioDeProspeccao,
   type EstagioDeProspeccao,
 } from '@/fonte/estagios-de-prospeccao'
-import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { EnviarAoCrm } from './enviar-ao-crm'
 import { useOfereceEnvioAoCrm } from './oferece-envio-ao-crm'
-import { PedirAoEthos } from './pedir-ao-ethos'
 import { Foguinho } from './sinais/componentes'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
@@ -27,9 +23,8 @@ const TIPO_DO_ARRASTE = 'application/x-althius-conta'
  * A vista Kanban das Contas (kanban 03): uma coluna por Estágio de prospecção, na ordem do funil. Arrastar um cartão
  * para outra coluna, ou escolher o estágio no menu do cartão, move a Conta à mão; o banco decide quem pode (só o
  * Vendedor responsável), e a recusa aparece em português acima das colunas. No CRM não recebe cartões à mão: só o
- * envio ao CRM leva a Conta para lá. Os critérios de passagem do Playbook (kanban 04) aparecem no cartão como o que
- * falta para o próximo Estágio, e mover sem conferi-los só avisa. O cartão e o aviso oferecem pedir ao Ethos que complete o
- * critério, numa Conversa nova.
+ * envio ao CRM leva a Conta para lá. Os critérios de passagem do kanban 04 vinham da seção SLA e metas do Playbook e
+ * saíram com ele (contexto-da-empresa 07).
  *
  * "Enviar ao CRM" (kanban 05) também sai do cartão: abre a mesma confirmação do detalhe da Conta (EnviarAoCrm), com os
  * dois caminhos de lá (a chave REST e o pedido aos Agentes pelo conector, ADR-0023). Enviada, a Conta vai para No CRM.
@@ -38,22 +33,17 @@ export function KanbanDeContas({
   contas,
   mover,
   estadoDoLink,
-  criterios = {},
 }: {
   contas: ContaAlvo[]
   mover: (contaId: string, estagio: EstagioDeProspeccao) => Promise<void>
   estadoDoLink: EstadoDaNavegacao
-  criterios?: CriteriosDePassagem
 }) {
   const [erro, setErro] = useState<string>()
-  const [aviso, setAviso] = useState<{ conta: ContaAlvo; estagio: string; criterio: string }>()
   const [movendo, setMovendo] = useState<string>()
   const [sobre, setSobre] = useState<EstagioDeProspeccao>()
   // A Conta cujo envio ao CRM está aberto. Fica aqui, e não no cartão, porque o cartão muda de coluna ao ser enviado.
   const [envioAberto, setEnvioAberto] = useState<string>()
   const contaDoEnvio = contas.find((c) => c.id === envioAberto)
-  // O Ethos é buscado uma vez aqui, e não em cada cartão.
-  const ethos = useDados((f) => f.agentes(), [])?.find((agente) => agente.especialidade.id === 'ethos')
 
   const porEstagio = new Map<EstagioDeProspeccao, ContaAlvo[]>(ESTAGIOS_DE_PROSPECCAO.map((e) => [e.id, []]))
   for (const conta of contas) porEstagio.get(conta.estagio ?? 'descoberta')!.push(conta)
@@ -61,14 +51,9 @@ export function KanbanDeContas({
   async function moverConta(conta: ContaAlvo, estagio: EstagioDeProspeccao) {
     if ((conta.estagio ?? 'descoberta') === estagio) return
     setErro(undefined)
-    setAviso(undefined)
     setMovendo(conta.id)
     try {
       await mover(conta.id, estagio)
-      const criterio = criterios[estagio]
-      if (criterio) {
-        setAviso({ conta, estagio: ESTAGIOS_DE_PROSPECCAO.find((e) => e.id === estagio)!.rotulo, criterio })
-      }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível mover a Conta.')
     } finally {
@@ -90,14 +75,6 @@ export function KanbanDeContas({
         <p role="alert" className="rounded-lg border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
           {erro}
         </p>
-      )}
-      {aviso && (
-        <div className="rounded-lg flex flex-wrap items-center gap-2 border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
-          <p role="status">
-            {aviso.conta.nome} foi para {aviso.estagio}. O Playbook pede: {aviso.criterio}. Confira se foi cumprido.
-          </p>
-          <PedirAoEthos ethos={ethos} conta={aviso.conta} estagio={aviso.estagio} criterio={aviso.criterio} />
-        </div>
       )}
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2" aria-label="Kanban de Contas" role="list">
         {ESTAGIOS_DE_PROSPECCAO.map(({ id, rotulo }) => {
@@ -129,8 +106,6 @@ export function KanbanDeContas({
                   key={conta.id}
                   conta={conta}
                   estadoDoLink={estadoDoLink}
-                  criterios={criterios}
-                  ethos={ethos}
                   movendo={movendo === conta.id}
                   mover={(estagio) => moverConta(conta, estagio)}
                   enviarAoCrm={() => setEnvioAberto(conta.id)}
@@ -163,16 +138,12 @@ export function KanbanDeContas({
 function CartaoDaConta({
   conta,
   estadoDoLink,
-  criterios,
-  ethos,
   movendo,
   mover,
   enviarAoCrm,
 }: {
   conta: ContaAlvo
   estadoDoLink: EstadoDaNavegacao
-  criterios: CriteriosDePassagem
-  ethos: Agente | undefined
   movendo: boolean
   mover: (estagio: EstagioDeProspeccao) => void
   enviarAoCrm: () => void
@@ -180,9 +151,6 @@ function CartaoDaConta({
   const estagio = conta.estagio ?? 'descoberta'
   // No CRM já foi: depois do envio, o CRM manda (ADR-0020) e o cartão não oferece outro.
   const ofereceEnvio = useOfereceEnvioAoCrm(conta) && estagio !== ESTAGIO_SO_DO_ENVIO_AO_CRM
-  const proximo = estagioSeguinte(estagio)
-  const criterio = proximo && criterios[proximo]
-  const rotuloDoProximo = proximo && ESTAGIOS_DE_PROSPECCAO.find((e) => e.id === proximo)!.rotulo
   return (
     <article
       aria-label={conta.nome}
@@ -215,20 +183,6 @@ function CartaoDaConta({
           <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />
           <span className="truncate">{conta.ultimoSinal.frase}</span>
         </p>
-      )}
-      {criterio && rotuloDoProximo && (
-        <>
-          <p className="text-xs text-al-muted">
-            Para {rotuloDoProximo}: {criterio}
-          </p>
-          <PedirAoEthos
-            ethos={ethos}
-            conta={conta}
-            estagio={rotuloDoProximo}
-            criterio={criterio}
-            rotulo={`Pedir ao Ethos para completar ${conta.nome}`}
-          />
-        </>
       )}
       <select
         aria-label={`Mover ${conta.nome}`}

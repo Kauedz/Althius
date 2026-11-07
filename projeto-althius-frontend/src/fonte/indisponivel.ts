@@ -9,7 +9,6 @@ import {
   type ContaDeUsuarioDaSessao,
 } from './ambiente'
 import type { FonteDeAutomacao } from './automacao-tipos'
-import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
@@ -124,19 +123,9 @@ export function criarFonteDeOnboardingIndisponivel(): FonteDeOnboarding {
   }
 }
 
-/** O Playbook onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
+/** A Automação onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
 export function criarFonteDeAutomacaoIndisponivel(): FonteDeAutomacao {
   return { observar: semMudancas, escopos: recusar('configuracoes'), salvar: recusar('configuracoes') }
-}
-
-export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
-  return {
-    observar: semMudancas,
-    secao: recusar('configuracoes'),
-    salvar: recusar('configuracoes'),
-    restaurar: recusar('configuracoes'),
-    propor: recusar('configuracoes'),
-  }
 }
 
 export function criarFonteDoContextoDaEmpresaIndisponivel(): FonteDoContextoDaEmpresa {

@@ -1,6 +1,7 @@
 // A busca de Contas pelo ICP (enriquecimento-em-cascata). O navegador pede, com a sessão de quem clicou:
 //   - `capability`: a função está no ar e tem o token do Apify (senão nem sobe);
-//   - `criteria`: os filtros que o ICP do Playbook sugere, para a pessoa conferir antes de gastar Créditos;
+//   - `prepare`: os filtros que o Contexto da empresa vigente sugere, por perfil, para a pessoa conferir antes de gastar
+//     Créditos (contexto-da-empresa 04). A ação antiga `criteria`, que lia o ICP do Playbook, saiu no ticket 07;
 //   - `search`: roda a busca. O banco abre a busca com a sessão de quem pede (`begin_account_discovery`): confere a
 //     Participação, o Actor do registro, o modo de teste, uma busca por vez e reserva o saldo. Só então o Actor roda, em
 //     segundo plano, com o token que fica só aqui; as empresas são normalizadas, avaliadas contra os filtros (critérios
@@ -11,13 +12,7 @@
 // dependência, para o teste ir da requisição à resposta sem rede.
 import { comCors } from '../_shared/cors.ts'
 import { ApifyRequestError, ApifyTimeoutError, type Apify } from '../signal-scan/handler.ts'
-import {
-  type ConteudoDoIcp,
-  criteriosDoIcp,
-  criteriosVazios,
-  faltaParaBuscar,
-  normalizarCriterios,
-} from './criterios.ts'
+import { faltaParaBuscar, normalizarCriterios } from './criterios.ts'
 import { ACTOR_RECEITA, candidatasDaReceita, candidatasDoLinkedin } from './normalizar.ts'
 import { type Avaliacao, avaliar, type CandidataBruta, type Motivo } from './pontuacao.ts'
 import { type ChamadaDoActor, MAX_COMBINACOES, montarPlano } from './plano.ts'
@@ -41,12 +36,6 @@ export interface ActorRegistrado {
   state: 'available' | 'testing' | 'out'
   version: string | null
   maxCostUsd: number
-}
-
-export interface IcpLido {
-  /** A versão vigente da seção ICP; nulo quando ela ainda não foi escrita. */
-  version: number | null
-  conteudo: ConteudoDoIcp
 }
 
 export interface InicioDaBusca {
@@ -115,8 +104,6 @@ export interface CandidataParaGravar {
 export interface Db {
   /** Quem assinou o JWT do navegador, ou null quando o token não vale. */
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
-  /** A seção ICP do Playbook, com a sessão de quem pede (só Participação ativa lê). Nulo se não há ICP escrito. */
-  lerIcp(args: { workspaceId: string; authorization: string; apikey: string }): Promise<IcpLido | null>
   /**
    * O Contexto da empresa vigente (get_company_context), com a sessão de quem pede: a versão (nula sem contexto) e o
    * texto do Perfil de cliente ideal. Lança ErroDoBanco 42501 para quem não participa do Workspace.
@@ -165,17 +152,12 @@ export interface Deps {
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const MAX_EMPRESAS = 100
 const PADRAO_DE_EMPRESAS = 50
-const RESUMO_DO_ICP = 1500
 const MAX_CRITERIOS_GRAVADOS = 15
 /** O teto do registro da busca no banco (discovery_runs.criteria) é 20.000 caracteres. */
 const MAX_REGISTRO = 19_000
 
 function responder(corpo: unknown, status = 200) {
   return new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
-}
-
-function textoDoIcp(conteudo: ConteudoDoIcp): string {
-  return typeof conteudo.texto === 'string' ? conteudo.texto.trim() : ''
 }
 
 /** O que o banco recusou, em palavras do produto. */
@@ -545,25 +527,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const preparacao = await prepararBusca({ contexto, llm: deps.llm, workspaceId })
       log({ type: 'account_discovery', outcome: 'prepared', estado: preparacao.estado, perfis: preparacao.perfis.length })
       return responder(preparacao)
-    }
-
-    if (acao === 'criteria') {
-      let icp: IcpLido | null
-      try {
-        icp = await deps.db.lerIcp({ workspaceId, authorization, apikey })
-      } catch (erro) {
-        if (erro instanceof ErroDoBanco && erro.code === '42501') return recusaDoBanco(erro)
-        log({ type: 'account_discovery', outcome: 'icp_failed', message: String(erro) })
-        return responder({ code: 'erro', error: 'Não foi possível ler o ICP do Playbook agora.' }, 500)
-      }
-      const texto = icp ? textoDoIcp(icp.conteudo) : ''
-      const temIcp = !!icp && (texto.length > 0 || (Array.isArray(icp.conteudo.linhas) && icp.conteudo.linhas.length > 0))
-      return responder({
-        temIcp,
-        icpVersion: icp?.version ?? null,
-        icpResumo: texto.slice(0, RESUMO_DO_ICP),
-        criteria: temIcp ? criteriosDoIcp(icp!.conteudo) : criteriosVazios(),
-      })
     }
 
     if (acao === 'search') {

@@ -9,23 +9,19 @@ function cliente(invoke: ReturnType<typeof vi.fn>) {
 }
 
 describe('Fonte Supabase de Descobertas', () => {
-  it('envia critérios e versão na busca e critérios na leitura', async () => {
-    const invoke = vi.fn()
-      .mockResolvedValueOnce({ data: { temIcp: true, icpVersion: 4, icpResumo: 'Software', criteria: criterios }, error: null })
-      .mockResolvedValueOnce({ data: null, error: null })
-    const fonte = criarFonteDeDescobertasSupabase(cliente(invoke), () => 'w1')
-    await expect(fonte.criteriosDaBusca()).resolves.toMatchObject({ icpVersion: 4, criterios })
-    await fonte.buscarContas({ criterios, icpVersion: 4, allowTesting: true })
-    expect(invoke).toHaveBeenLastCalledWith('account-discovery', expect.objectContaining({ body: expect.objectContaining({ action: 'search', workspaceId: 'w1', criteria: criterios, icpVersion: 4, allowTesting: true }) }))
-  })
-
   it('transforma o corpo JSON do erro em mensagem e usa fallback quando não é JSON', async () => {
     const json = vi.fn().mockResolvedValue({ error: 'Informe ao menos um setor ou uma palavra-chave.' })
     const invoke = vi.fn().mockResolvedValue({ error: { message: 'generic', context: { json } } })
     const fonte = criarFonteDeDescobertasSupabase(cliente(invoke), () => 'w1')
-    await expect(fonte.criteriosDaBusca()).rejects.toThrow('Informe ao menos um setor ou uma palavra-chave.')
+    await expect(fonte.prepararBusca()).rejects.toThrow('Informe ao menos um setor ou uma palavra-chave.')
     invoke.mockResolvedValue({ error: { message: 'generic', context: { json: vi.fn().mockRejectedValue(new Error('not json')) } } })
-    await expect(fonte.criteriosDaBusca()).rejects.toThrow('generic')
+    await expect(fonte.prepararBusca()).rejects.toThrow('generic')
+  })
+
+  it('não tem mais a leitura de filtros pelo ICP do Playbook (contexto-da-empresa 07)', () => {
+    const fonte = criarFonteDeDescobertasSupabase(cliente(vi.fn()), () => 'w1') as unknown as Record<string, unknown>
+    expect(fonte.criteriosDaBusca).toBeUndefined()
+    expect(fonte.buscarContas).toBeUndefined()
   })
 
   it('prepara pelo Contexto da empresa e busca pelos perfis com a versão; a recusa traz o código', async () => {
@@ -36,15 +32,15 @@ describe('Fonte Supabase de Descobertas', () => {
       .mockResolvedValueOnce({ data: { runId: 'r1' }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'generic', context: { json } } })
     const fonte = criarFonteDeDescobertasSupabase(cliente(invoke), () => 'w1')
-    await expect(fonte.prepararBusca!()).resolves.toEqual(preparacao)
+    await expect(fonte.prepararBusca()).resolves.toEqual(preparacao)
     expect(invoke).toHaveBeenLastCalledWith('account-discovery', { body: { action: 'prepare', workspaceId: 'w1' } })
 
     const perfis = [{ nome: 'ICP primário', criterios, aplicados: [], pendentes: [] }]
-    await fonte.buscarPorPerfis!({ perfis, contextoVersao: 7 })
+    await fonte.buscarPorPerfis({ perfis, contextoVersao: 7 })
     expect(invoke).toHaveBeenLastCalledWith('account-discovery', {
       body: expect.objectContaining({ action: 'search', workspaceId: 'w1', perfis, contextoVersao: 7, maxResults: 50, allowTesting: false }),
     })
-    const erro = await fonte.buscarPorPerfis!({ perfis, contextoVersao: 7 }).catch((e) => e)
+    const erro = await fonte.buscarPorPerfis({ perfis, contextoVersao: 7 }).catch((e) => e)
     expect(erro).toBeInstanceOf(ErroDaBuscaDeContas)
     expect(erro).toMatchObject({ message: 'O Contexto da empresa mudou.', codigo: 'contexto_mudou' })
   })

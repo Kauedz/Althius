@@ -2,6 +2,7 @@
 // Um aviso só informa; a capacidade de decidir continua nas operações.
 import { categoriaDa, ehRevisaoDoPlaybook, podeDecidir, ROTULO_DA_DECISAO } from './regras'
 import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo } from './regras-memoria'
+import { ENDERECO_DO_CONTEXTO } from './contexto-no-onboarding'
 import type {
   Aprovacao,
   AprovacaoDeAcao,
@@ -100,7 +101,7 @@ export function avisoDeRevisaoDecidida(
     destinatarios: ativas([solicitante.contaId], participacoes),
     titulo: `Sua revisão ${DOCUMENTOS_DA_MEMORIA[documento].comArtigo} foi ${rotulo.toLowerCase()}`,
     texto: `${rotulo} por ${decididaPor.nome}. ${efeitoDaDecisao(documento, decisao)}`,
-    para: `/configuracoes/memoria/${documento}`,
+    para: ENDERECO_DO_CONTEXTO,
   }
 }
 

@@ -15,7 +15,7 @@ import {
   ROTULO_DO_TIPO,
   type FiltroDaFila,
 } from '@/fonte/fila-de-aprovacoes'
-import { ehAderenciaProposta, ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
+import { aguardaDecisao, ehAderenciaProposta, ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
 import type { Agente, AprovacaoDaFila, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
@@ -38,10 +38,10 @@ export function PaginaAprovacoes() {
   const decideAcoes = podeDecidir('acao', workspace?.papel, modo)
   const [filtro, setFiltro] = useState<FiltroDaFila>({ tipo: 'todos', agenteId: 'todos' })
 
-  const pendentes = aprovacoes?.filter((a) => a.estado === 'pendente').length ?? 0
+  const pendentes = aprovacoes?.filter(aguardaDecisao).length ?? 0
   // Uma lista só, com as pendentes primeiro: o cartão não sai do lugar ao ser decidido.
   const ordenadas = filtrarFila(aprovacoes ?? [], filtro).sort(
-    (a, b) => Number(b.estado === 'pendente') - Number(a.estado === 'pendente'),
+    (a, b) => Number(aguardaDecisao(b)) - Number(aguardaDecisao(a)),
   )
 
   return (

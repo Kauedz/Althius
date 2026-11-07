@@ -45,7 +45,6 @@ function montar(opcoes: { versaoAtual?: number | null; itens?: (input: Record<st
   const espera: Promise<unknown>[] = []
   const db: Db = {
     userFromJwt: () => Promise.resolve({ userId: 'user-1' }),
-    lerIcp: () => Promise.resolve(null),
     lerContexto: () => Promise.resolve({ versao: opcoes.versaoAtual === undefined ? 7 : opcoes.versaoAtual, icp: 'texto' }),
     actoresDeBusca: () =>
       Promise.resolve([

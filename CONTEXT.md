@@ -66,14 +66,18 @@ A situação comercial de um Workspace na Althius, e não de uma Conta de usuár
 _Avoid_: assinatura, plano do usuário
 
 **ICP**:
-O perfil de cliente ideal do Cliente, documentado na memória compartilhada do Workspace e utilizado como referência pelos Agentes e módulos da Althius.
-_Avoid_: CP
+O perfil de cliente ideal do Cliente: o texto Perfil de cliente ideal do Contexto da empresa, com o primário e os secundários escritos no mesmo campo. É a referência dos Agentes, da busca de Contas no Mercado e da Aderência (ADR-0035).
+_Avoid_: CP, mini-ICP
+
+**Contexto da empresa**:
+O que o Workspace definiu sobre a própria empresa, em três textos editáveis: Empresa, Perfil de cliente ideal e Personas. A primeira geração pelo site fica vigente sozinha; as seguintes são sugestões que o Administrador aceita ou descarta. Só o Administrador salva, cada gravação é uma versão, e as operações seguintes usam a versão vigente, enquanto o histórico guarda a que usou. Substituiu o Playbook do Workspace e o mini-ICP do onboarding como fonte comercial (ADR-0035).
+_Avoid_: AI Context, Playbook, Memória do Workspace
 
 **Memória do Workspace**:
-A documentação compartilhada do Cliente, incluindo o ICP e as definições de Personas, que serve de referência para todo o Workspace. É distinta da Memória individual de cada Agente.
+Nome antigo da documentação compartilhada do Cliente (o ICP e as definições de Personas). No produto, o Contexto da empresa ocupa o lugar dela; a tela de Configurações saiu e só a Demonstração ainda guarda a versão simulada. É distinta da Memória individual de cada Agente, que continua valendo.
 
 **Revisão da Memória do Workspace**:
-A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente. No Workspace operacional, a revisão é a nova versão de uma seção do Playbook da Especialidade do Agente (o Scopus no ICP e no Mercado; o Ethos nas Personas, no Processo de compra, na Dor e percepção e nas Objeções): aprovada, vira a versão vigente da seção; se a seção mudou antes da decisão, fica desatualizada e não vale mais.
+A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente. No Workspace operacional, a revisão era a nova versão de uma seção do Playbook da Especialidade do Agente; com a retirada do Playbook, os Agentes não propõem mais revisões, e as antigas ficam em Aprovações só como registro (a pendente vence sem decisão). O Contexto da empresa não tem revisão por Agente: o Agente mostra o texto sugerido e um Administrador salva.
 _Avoid_: versão, rascunho
 
 **Conta-alvo**:
@@ -124,7 +128,7 @@ A ação, só de um Administrador e com o nome do registro digitado como confirm
 _Avoid_: arquivar, remover
 
 **Persona**:
-A classificação de um Contato por um papel do Comitê de compra descrito pelo Ethos, cuja definição é documentada na Memória do Workspace. Um Contato tem no máximo uma Persona, e pode não ter nenhuma.
+A classificação de um Contato por um papel do Comitê de compra descrito pelo Ethos, cuja definição está no texto Personas do Contexto da empresa. Um Contato tem no máximo uma Persona, e pode não ter nenhuma.
 _Avoid_: perfil, papel, arquétipo
 
 **Sinal**:
@@ -188,8 +192,8 @@ Todas as Contas-alvo de um Workspace, em qualquer Estágio de prospecção. É a
 _Avoid_: base total, universo
 
 **Playbook do Workspace**:
-A Memória do Workspace estruturada nas seções fixas do playbook do setup (Empresa, ICP, Mercado, Personas, Processo de compra, Dor e percepção, Pipeline, SLA e metas, Rotina, Cadência, Scripts, Templates, Objeções, Frameworks, Apresentação, Negociação e follow-up). Cada seção é versionada; o Administrador edita, e a mudança proposta por um Agente é uma Revisão da Memória do Workspace. Cada Agente lê as seções da sua Especialidade e sempre a seção Empresa.
-_Avoid_: manual, documento de vendas
+Retirado. Era a Memória do Workspace estruturada nas seções fixas do playbook do setup (Empresa, ICP, Mercado, Personas, Processo de compra, SLA e metas, Cadência, Scripts e outras), cada uma versionada. O Contexto da empresa o substituiu (ADR-0035): nenhuma tela, Agente ou Edge Function o lê, importa ou edita, e o que dependia de seções que deixaram de existir (critérios de passagem do kanban, Cadência como modelo de Sequência) saiu ou passou ao fluxo próprio. As versões gravadas ficam no banco, sem apagar nada.
+_Avoid_: manual, documento de vendas, usar como fonte de ICP
 
 **Estágio de prospecção**:
 Onde uma Conta-alvo está no funil de prospecção: Descoberta, Quente, Fit, Em abordagem, Respondeu, Reunião, No CRM ou Descartada. Os eventos (Sinal, Aderência, Envio, resposta, reunião, envio ao CRM) movem o estágio, e a pessoa também move à mão. Depois de Em abordagem, nunca volta para trás, exceto para Descartada.
@@ -230,7 +234,7 @@ Um participante que só consulta o Workspace: não conecta canais, não gasta Cr
 _Avoid_: visitante, leitor
 
 **Setup**:
-O serviço de entrada da Althius para um Cliente: monta o Playbook do Workspace, importa a base de pesquisa como Contas-alvo, liga as Integrações e libera o Workspace da empresa.
+O serviço de entrada da Althius para um Cliente: revisa o Contexto da empresa com o Cliente, importa a base de pesquisa como Contas-alvo, liga as Integrações e libera o Workspace da empresa.
 _Avoid_: onboarding pago, implantação
 
 ## Agentes

@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { type ClienteRpc, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
-import { createHandler, type Db, ErroDoBanco, type IcpLido } from './handler.ts'
+import { createHandler, type Db, ErroDoBanco } from './handler.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
 import { normalizarCriterios } from './criterios.ts'
 import { LIMITES_DA_PREPARACAO } from './preparacao.ts'
@@ -37,16 +37,6 @@ const db: Db = {
     const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(authorization.slice(7))
     if (error || !data.user) return null
     return { userId: data.user.id }
-  },
-  async lerIcp({ workspaceId, authorization, apikey }): Promise<IcpLido | null> {
-    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('get_playbook_section', {
-      p_workspace_id: workspaceId,
-      p_section: 'icp',
-    })
-    if (error) throw falha(error)
-    const secao = data as { version?: number | null; content?: { texto?: unknown; linhas?: unknown } | null } | null
-    if (!secao?.content) return null
-    return { version: secao.version ?? null, conteudo: secao.content }
   },
   async lerContexto({ workspaceId, authorization, apikey }) {
     // O contexto vigente com a sessão de quem pede: get_company_context confere a Participação ativa.

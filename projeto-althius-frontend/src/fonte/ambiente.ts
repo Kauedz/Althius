@@ -4,7 +4,6 @@
 import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeAutomacao } from './automacao-tipos'
-import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeDescobertas } from './descobertas-tipos'
@@ -75,8 +74,6 @@ export interface Ambiente {
   fonteDeConexoes: FonteDeConexoes
   /** As Contas remetentes do titular. Na Demonstração, nenhuma é conectada. */
   fonteDeContasRemetentes: FonteDeContasRemetentes
-  /** O Playbook do Workspace. Sem ela, a tela do Playbook diz que ainda não está disponível. */
-  fonteDoPlaybook?: FonteDoPlaybook
   /** O Contexto da empresa: Empresa, ICP e Personas. Sem ela, a seção diz que ainda não está disponível. */
   fonteDoContextoDaEmpresa?: FonteDoContextoDaEmpresa
   /** O automático e os tetos (creditos-e-planos 03). Sem ela, a seção aparece indisponível. */

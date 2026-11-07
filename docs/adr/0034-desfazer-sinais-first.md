@@ -1,6 +1,7 @@
 # ADR-0034 — Desfazer o Sinais first: os quatro Agentes voltam, o ICP volta a ser o do Playbook
 
 Status: Aceita. Decidida pelo dono do produto em 31/10/2026. Substitui a [ADR-0033](0033-sinais-first.md) por inteiro.
+A decisão 6 (a origem do ICP) foi substituída pela [ADR-0035](0035-icp-pelo-contexto-da-empresa.md); as demais continuam valendo.
 
 ## Contexto
 
@@ -33,7 +34,8 @@ Sinal; telefone a 5 créditos; o Sinal de mercado da Trilha C 5a) está funciona
 5. **O Rhetor volta a ser quem escreve Sequência.** As RPCs de propor e sugerir modelo de Sequência voltam a exigir
    `specialty = 'rhetor'`, as ferramentas de Sequência voltam a ser só do Rhetor, e Gerar Sequência leva o pedido
    direto à Conversa do Rhetor. O que o #317 trouxe e não é sobre Especialidade (Sequência em Conta sem Sinal) fica.
-6. **O ICP volta a ser o do Playbook.** A fonte de ICP de toda função é a seção `icp` do Playbook do Workspace
+6. **O ICP volta a ser o do Playbook.** _(Substituída pela [ADR-0035](0035-icp-pelo-contexto-da-empresa.md): o ICP vem do
+   Contexto da empresa, e o mini-ICP deixou de ser perguntado.)_ A fonte de ICP de toda função é a seção `icp` do Playbook do Workspace
    (`get_playbook_section('icp')`) mais o mini-ICP do onboarding (`day0_companies`). O ICP estruturado único sai:
    gatilhos, sincronização, semeadura, ranqueamento e Aderência por ele. O mini-ICP do onboarding (o que vende, para
    quem, por que compram) continua sendo perguntado e salvo.

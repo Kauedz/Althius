@@ -71,7 +71,7 @@ export function fonteDoCliente(fonte: string | null | undefined): boolean {
 }
 
 /**
- * Classifica o cargo em uma das três Personas do Playbook (Decisor, Influenciador, Campeão),
+ * Classifica o cargo em um dos três papéis do Comitê de compra (Decisor, Influenciador, Campeão),
  * garantindo a correspondência determinística com a estrutura do comitê de compra.
  */
 export function classificarPersona(cargo = '', headline = ''): 'Decisor' | 'Influenciador' | 'Campeao' | 'Outro' {

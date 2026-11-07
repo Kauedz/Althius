@@ -7,7 +7,7 @@ import { PaginaDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { TemaSalvoNaConta } from '@/components/tema-salvo-na-conta'
 import { ConversasProvider } from '@/conversa/contexto'
 import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
-import { criarFonteDeAutomacaoIndisponivel, criarFonteDoPlaybookIndisponivel, criarFonteDoContextoDaEmpresaIndisponivel } from '@/fonte/indisponivel'
+import { criarFonteDeAutomacaoIndisponivel, criarFonteDoContextoDaEmpresaIndisponivel } from '@/fonte/indisponivel'
 import {
   AmbienteProvider,
   useAmbiente,
@@ -18,7 +18,6 @@ import {
   FonteDeContasRemetentesProvider,
   FonteDeSinaisProvider,
   FonteDeAutomacaoProvider,
-  FonteDoPlaybookProvider,
   FonteDoContextoDaEmpresaProvider,
   FonteDeDescobertasProvider,
   FonteProvider,
@@ -51,7 +50,6 @@ interface Props {
   animarDigitacao?: boolean
 }
 
-const PLAYBOOK_INDISPONIVEL = criarFonteDoPlaybookIndisponivel()
 const CONTEXTO_INDISPONIVEL = criarFonteDoContextoDaEmpresaIndisponivel()
 const AUTOMACAO_INDISPONIVEL = criarFonteDeAutomacaoIndisponivel()
 
@@ -107,7 +105,6 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
               <FonteDeSinaisProvider fonte={ambiente.fonteDeSinais}>
                 <FonteDeConexoesProvider fonte={ambiente.fonteDeConexoes}>
                   <FonteDeContasRemetentesProvider fonte={ambiente.fonteDeContasRemetentes}>
-                    <FonteDoPlaybookProvider fonte={ambiente.fonteDoPlaybook ?? PLAYBOOK_INDISPONIVEL}>
                     <FonteDoContextoDaEmpresaProvider fonte={ambiente.fonteDoContextoDaEmpresa ?? CONTEXTO_INDISPONIVEL}>
                     <FonteDeAutomacaoProvider fonte={ambiente.fonteDeAutomacao ?? AUTOMACAO_INDISPONIVEL}>
                     <FonteDeDescobertasProvider fonte={ambiente.fonteDeDescobertas}>
@@ -132,7 +129,6 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
                     </FonteDeDescobertasProvider>
                     </FonteDeAutomacaoProvider>
                     </FonteDoContextoDaEmpresaProvider>
-                    </FonteDoPlaybookProvider>
                   </FonteDeContasRemetentesProvider>
                 </FonteDeConexoesProvider>
               </FonteDeSinaisProvider>

@@ -44,7 +44,6 @@ Deno.test('descoberta de contas: a falha do fornecedor grava um motivo em palavr
     const espera: Promise<unknown>[] = []
     const db: DbDaDescoberta = {
       userFromJwt: () => Promise.resolve({ userId: 'u1' }),
-      lerIcp: () => Promise.resolve(null),
       actoresDeBusca: () => Promise.resolve([{ actorId: ACTOR_RECEITA, state: 'available', version: 'v1', maxCostUsd: 1 }]),
       iniciar: () => Promise.resolve({ runId: '33333333-3333-4333-8333-333333333333', outcome: 'go', state: 'running', actorVersion: 'v1' }),
       gravarCandidatas: () => Promise.resolve({ added: 0, duplicates: 0, ignored: 0 }),
@@ -73,7 +72,6 @@ Deno.test('descoberta de contas: o Actor em teste, fora ou fora do registro resp
   for (const estado of ['testing', 'out', 'ausente'] as const) {
     const db: DbDaDescoberta = {
       userFromJwt: () => Promise.resolve({ userId: 'u1' }),
-      lerIcp: () => Promise.resolve(null),
       actoresDeBusca: () => Promise.resolve(estado === 'ausente' ? [] : [{ actorId: ACTOR_RECEITA, state: estado, version: 'v1', maxCostUsd: 1 }]),
       iniciar: () => Promise.reject(new Error('não deveria abrir')),
       gravarCandidatas: () => Promise.resolve({ added: 0, duplicates: 0, ignored: 0 }),

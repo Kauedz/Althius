@@ -53,7 +53,6 @@ function llmQueResponde(saida: unknown, registro: { usuario?: string; chamadas: 
 function handlerCom(db: Partial<Db>, llm?: Llm) {
   const base: Db = {
     userFromJwt: () => Promise.resolve({ userId: 'u1' }),
-    lerIcp: () => Promise.resolve(null),
     lerContexto: () => Promise.resolve({ versao: 7, icp: ICP }),
     actoresDeBusca: () => Promise.resolve([]),
     iniciar: () => Promise.reject(new Error('não deve iniciar')),

@@ -17,7 +17,7 @@ TAM: todas as Contas-alvo do Workspace (ex.: 1.000 empresas)
   → Sinais de compra: Contas Quentes (ex.: 200 dando sinal agora)       ← o diferencial
     → Aderência: Fit com o ICP (ex.: 80)
       → Comitê de compra: os 3 perfis certos em cada Conta (Decisor, Influenciador, Campeão)
-        → Abordagem: cadência multicanal escrita a partir do playbook
+        → Abordagem: cadência multicanal escrita a partir do Contexto da empresa
           → Resposta e reunião marcada
             → Enviar ao CRM (ponte), onde o Closer continua
 ```
@@ -30,7 +30,7 @@ motions para elas (GEO/SEO, inbound, PLG, públicos de anúncio) são fase 2.
 | Camada | O que é | Spec |
 | --- | --- | --- |
 | Dados | Contas-alvo, Contatos (até 3 e-mails e 3 telefones), CSV, arquivar e apagar | `.scratch/crm-real-e-stack/` |
-| Playbook do Workspace | O playbook do setup, estruturado: ICP, TAM/SAM/SOM, Personas, dores, processo de compra, objeções, cadência, scripts, templates, SLA | `.scratch/playbook-do-workspace/` |
+| Contexto da empresa | Empresa, Perfil de cliente ideal e Personas, gerados pelo site e editados pelo Administrador; substituiu o Playbook do Workspace (ADR-0035) | `.scratch/contexto-da-empresa/` (antes `.scratch/playbook-do-workspace/`, retirado) |
 | Sinais | Externos (Apify), internos (histórico comercial) e originados; Monitoramentos; reativação; catálogo de lançamento | `.scratch/modulo-de-sinais/` (telas) e `.scratch/sinais-reais/` (backend real) |
 | Enriquecimento | Coleta do comitê de compra e revelação de LinkedIn, e-mail e telefone em cascata | `.scratch/enriquecimento-em-cascata/` |
 | Kanban de prospecção | Estágios fixos de cada Conta, movidos por eventos e pelos Agentes; Enviar ao CRM | `.scratch/kanban-de-prospeccao/` |
@@ -85,7 +85,7 @@ motions para elas (GEO/SEO, inbound, PLG, públicos de anúncio) são fase 2.
 
 ## 5. Ordem sugerida entre as specs
 
-1. `playbook-do-workspace` (base de tudo: o que os Agentes sabem da empresa)
+1. `contexto-da-empresa` (base de tudo: o que os Agentes sabem da empresa; substituiu `playbook-do-workspace`)
 2. `agentes-em-conversa` (Agentes de verdade, cada um com a sua vez)
 3. `creditos-e-planos` (antes de qualquer automático gastar dinheiro)
 4. `sinais-reais` e `enriquecimento-em-cascata` (em paralelo, cada uma com o seu dono)

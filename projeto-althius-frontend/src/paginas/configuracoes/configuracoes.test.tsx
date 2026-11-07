@@ -24,13 +24,13 @@ describe('Navegação até Configurações', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Meu perfil' })).toBeInTheDocument()
   })
 
-  it('abre cada uma das seis seções aprovadas no mockup pelas abas', async () => {
+  it('abre cada uma das seções pelas abas, com o Contexto da empresa no lugar da Memória do Workspace', async () => {
     const { usuario } = renderizarApp('/configuracoes/perfil')
     const abas = await screen.findByRole('navigation', { name: 'Seções de Configurações' })
     for (const [rotulo, titulo] of [
       ['Preferências', 'Preferências'],
       ['Workspace', 'Pessoas e acesso'],
-      ['Memória do Workspace', 'Memória do Workspace'],
+      ['Contexto da empresa', 'Contexto da empresa'],
       ['Plano', 'Plano'],
       ['Ajuda e informações', 'Ajuda e informações'],
       ['Meu perfil', 'Meu perfil'],

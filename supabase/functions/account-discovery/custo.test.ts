@@ -40,7 +40,6 @@ function montar(opcoes: {
   const espera: Promise<unknown>[] = []
   const db: Db = {
     userFromJwt: () => Promise.resolve({ userId: 'user-1' }),
-    lerIcp: () => Promise.resolve(null),
     actoresDeBusca: () => Promise.resolve([{ actorId: ACTOR_RECEITA, state: 'available', version: 'v1', maxCostUsd: 1 }]),
     iniciar: () => Promise.resolve({ runId: BUSCA, outcome: 'go', state: 'running', actorVersion: 'v1' }),
     gravarCandidatas: (_runId, candidatas) => {

@@ -137,6 +137,10 @@ insert into private.playbook_section_versions (workspace_id, section, version, c
   ('69000000-0000-0000-0000-000000000001', 'empresa', 1, '{"texto": "Vendemos software de planejamento."}'),
   ('69000000-0000-0000-0000-000000000001', 'icp', 1, '{"texto": "Construtoras de médio porte."}'),
   ('69000000-0000-0000-0000-000000000001', 'mercado', 1, '{"texto": "Mercado reservado ao Scopus."}');
+-- O Contexto da empresa (contexto-da-empresa 07): é ele, e não o Playbook acima, que entra no contexto.
+insert into private.company_context_versions (workspace_id, version, empresa, icp, personas) values
+  ('69000000-0000-0000-0000-000000000001', 1, 'Software de obras.', 'Construtoras regionais.', 'Diretor de obras.'),
+  ('69000000-0000-0000-0000-000000000002', 1, 'Texto do Sul.', 'ICP do Sul.', 'Personas do Sul.');
 
 -- 1. Ninguém lê as tabelas por fora; decidir é do app (titular), gerar e enviar são do servidor, nada para anon.
 select ok(
@@ -283,8 +287,10 @@ select ok(
     and (select position('Olá, Maria.' in (c #>> '{messages,0,text}')) > 0 from contexto),
   'com o texto das duas mensagens');
 select is(
-  (select string_agg(x ->> 'section', ',' order by x ->> 'section') from contexto, jsonb_array_elements(c -> 'playbook') x),
-  'empresa,icp', 'o Playbook traz a Empresa e o ICP, e não as seções de outras Especialidades');
+  (select (c #>> '{contexto,version}') || '|' || (c #>> '{contexto,empresa}') || '|' || (c #>> '{contexto,icp}') || '|'
+    || (c #>> '{contexto,personas}') || '|' || (c ? 'playbook')::text from contexto),
+  '1|Software de obras.|Construtoras regionais.|Diretor de obras.|false',
+  'o contexto traz os três textos do Contexto da empresa do Workspace, e não o Playbook');
 select ok(
   (select position('pedro' in lower(c::text)) = 0 and position('@' in c::text) = 0 and position('Mercado' in c::text) = 0 from contexto),
   'e nada além do necessário: nem o outro Contato, nem e-mails, nem o Mercado');
