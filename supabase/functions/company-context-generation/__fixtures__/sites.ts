@@ -3,6 +3,8 @@
 // o que seria falha grave (confundir a empresa com os compradores, inventar evidência, criar restrição sem base).
 // Os nomes, domínios e textos são inventados; nenhum é de empresa real.
 
+import type { Conceito, Preparacao } from '../../account-discovery/preparacao.ts'
+
 export interface CasoDeAvaliacao {
   id: string
   tipo: 'saas' | 'industria' | 'consultoria' | 'empresa_nova' | 'varios_icps' | 'site_insuficiente'
@@ -20,6 +22,12 @@ export interface CasoDeAvaliacao {
     proibido?: RegExp[]
     /** Quantos ICPs distintos o texto deve trazer (primário, secundário...). */
     icpsMinimos?: number
+    /**
+     * Filtros que o Mercado não pode aplicar a partir desse ICP (`conceito:valor`), por serem hipótese sem base ou dado
+     * da empresa analisada tomado como dos compradores. Nenhum site dos casos dá funcionários, faturamento ou porte dos
+     * compradores, então filtro numérico aplicado é sempre falha grave (conferido em `conferirFiltros`).
+     */
+    proibidoNosFiltros?: RegExp[]
   }
 }
 
@@ -54,6 +62,8 @@ export const CASOS: CasoDeAvaliacao[] = [
       compradores: [/escola|academia|provedor/i],
       personas: [/financeir|cobran[cç]a|CFO|controller/i],
       proibido: [/\d+\s*clientes/i, /faturamento de R\$/i],
+      // A equipe é de Belo Horizonte; os compradores não são só de Minas.
+      proibidoNosFiltros: [/^(sede|atuacao):.*(Minas|MG|Belo Horizonte)/i],
     },
   },
   {
@@ -77,6 +87,8 @@ export const CASOS: CasoDeAvaliacao[] = [
       compradores: [/aliment|bebida|e-?commerce|hortifr|autope/i],
       personas: [/compra|suprimento|log[ií]stic|produ[cç][aã]o/i],
       proibido: [/vende (software|SaaS)/i],
+      // Joinville é a fábrica, não onde ficam os compradores.
+      proibidoNosFiltros: [/^(sede|atuacao):.*(Joinville|Santa Catarina|SC)$/i],
     },
   },
   {
@@ -123,6 +135,8 @@ export const CASOS: CasoDeAvaliacao[] = [
       personas: [/s[oó]ci|propriet|gestor|recep|administr/i],
       // A idade da empresa não restringe o ICP, e não há número de clientes no site.
       proibido: [/\d+\s*cl[ií]nicas (atendidas|clientes)/i, /apenas pequenas por ser nova/i],
+      // Ser nova não restringe o porte dos compradores.
+      proibidoNosFiltros: [/^excluir:.*(grande|enterprise)/i],
     },
   },
   {
@@ -173,8 +187,9 @@ export function fetchDoCaso(caso: CasoDeAvaliacao): typeof fetch {
 }
 
 /**
- * A rubrica da spec, aplicada ao que dá para conferir automaticamente. O resto (fatos vs. inferências, coerência das
- * personas, correspondência entre narrativa e filtros) fica para a revisão de uma pessoa, que registra o resultado.
+ * A rubrica da spec, aplicada ao que dá para conferir automaticamente nos textos. A correspondência entre narrativa e
+ * filtros fica em `conferirFiltros`; fatos vs. inferências e a coerência das personas, na revisão de uma pessoa, que
+ * registra o resultado em `.scratch/contexto-da-empresa/validacao.md`.
  */
 export function conferirRubrica(
   caso: CasoDeAvaliacao,
@@ -193,9 +208,41 @@ export function conferirRubrica(
   for (const re of esperado.compradores ?? []) if (!re.test(icp)) problemas.push(`ICP não reconhece compradores ${re}`)
   for (const re of esperado.personas ?? []) if (!re.test(personas)) problemas.push(`Personas sem ${re}`)
   const tudo = `${empresa}\n${icp}\n${personas}`
-  for (const re of esperado.proibido ?? []) if (re.test(tudo)) problemas.push(`falha grave: ${re}`)
+  for (const re of esperado.proibido ?? []) if (re.test(tudo)) problemas.push(`${FALHA_GRAVE}: ${re}`)
   if (esperado.icpsMinimos && (icp.match(/ICP (prim[aá]rio|secund[aá]rio|terci[aá]rio)/gi)?.length ?? 0) < esperado.icpsMinimos) {
     problemas.push(`ICP com menos de ${esperado.icpsMinimos} perfis`)
+  }
+  return problemas
+}
+
+const CONCEITOS_NUMERICOS = new Set<Conceito>(['funcionarios', 'faturamento', 'porteCadastral'])
+
+/** Problemas que impedem considerar a funcionalidade pronta (confundir, inventar, restrição sem base). */
+export const FALHA_GRAVE = 'falha grave'
+export const ehGrave = (problema: string): boolean => problema.startsWith(FALHA_GRAVE)
+
+/**
+ * A rubrica da correspondência entre narrativa e filtros: o ICP gerado vira filtros sem hipótese obrigatória, sem dado
+ * da empresa analisada e sem número inventado; cada perfil do texto vira um recorte que o Mercado consegue buscar.
+ */
+export function conferirFiltros(caso: CasoDeAvaliacao, icp: string, preparacao: Preparacao): string[] {
+  if (preparacao.estado !== 'pronta') return [`preparação ${preparacao.estado}`]
+  const problemas: string[] = []
+  const texto = icp.replace(/\s+/g, ' ')
+  if (caso.esperado.icpsMinimos && preparacao.perfis.length < caso.esperado.icpsMinimos) {
+    problemas.push(`filtros com menos de ${caso.esperado.icpsMinimos} recortes (vieram ${preparacao.perfis.length})`)
+  }
+  for (const perfil of preparacao.perfis) {
+    if (!perfil.criterios.setores.length && !perfil.criterios.palavrasChave.length) {
+      problemas.push(`${perfil.nome}: sem setor nem palavra-chave, o Mercado não busca esse recorte`)
+    }
+    for (const a of perfil.aplicados) {
+      if (!texto.includes(a.trecho.replace(/\s+/g, ' '))) problemas.push(`${perfil.nome}: filtro ${a.conceito} sem trecho no ICP`)
+      if (CONCEITOS_NUMERICOS.has(a.conceito)) problemas.push(`${FALHA_GRAVE}: ${perfil.nome} aplica ${a.conceito} "${a.valor}" sem base no site`)
+      for (const re of caso.esperado.proibidoNosFiltros ?? []) {
+        if (re.test(`${a.conceito}:${a.valor}`)) problemas.push(`${FALHA_GRAVE}: ${perfil.nome} aplica ${a.conceito} "${a.valor}" (${re})`)
+      }
+    }
   }
   return problemas
 }

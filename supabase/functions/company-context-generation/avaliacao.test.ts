@@ -4,8 +4,10 @@
 // `scripts/avaliar-contexto-da-empresa.ts` e é revisada por uma pessoa (ticket 08).
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
+import { criteriosVazios } from '../account-discovery/criterios.ts'
+import type { CriterioDoTexto, PerfilPreparado, Preparacao } from '../account-discovery/preparacao.ts'
 import { gerar } from './handler.ts'
-import { CASOS, conferirRubrica, fetchDoCaso } from './__fixtures__/sites.ts'
+import { CASOS, conferirFiltros, conferirRubrica, ehGrave, fetchDoCaso } from './__fixtures__/sites.ts'
 
 const WORKSPACE = '17000000-0000-4000-8000-000000000002'
 
@@ -73,4 +75,49 @@ Deno.test('rubrica: confundir empresa e compradores, inventar e perder um ICP s�
       textos: { empresa: 'Telemetria de frota.', icp: 'ICP primário: transportadoras.', personas: 'Gerente de frota.' },
     }).some((p) => p.includes('menos de 2')),
   )
+})
+
+Deno.test('rubrica dos filtros: número sem base, dado da empresa analisada e recorte que não busca são reprovados', () => {
+  const saas = CASOS.find((c) => c.id === 'saas-de-cobranca')!
+  const icp = 'ICP primário: escolas de idiomas com mensalidade. Recortes sugeridos (a confirmar): 50 a 500 funcionários.'
+  const perfil = (aplicados: CriterioDoTexto[], setores = ['Escolas de idiomas']): PerfilPreparado => ({
+    nome: 'ICP primário',
+    criterios: { ...criteriosVazios(), setores },
+    aplicados,
+    pendentes: [],
+  })
+  const pronta = (perfis: PerfilPreparado[]): Preparacao => ({ estado: 'pronta', contextoVersao: 1, fonte: 'linkedin', perfis })
+  const fiel = conferirFiltros(saas, icp, pronta([perfil([{ conceito: 'setor', valor: 'Escolas de idiomas', trecho: 'escolas de idiomas com mensalidade' }])]))
+  assertEquals(fiel, [])
+  // Um trecho que atravessa a quebra de linha do texto continua sendo do texto.
+  assertEquals(
+    conferirFiltros(
+      saas,
+      'ICP primário: escolas de\nidiomas com mensalidade.',
+      pronta([perfil([{ conceito: 'setor', valor: 'escolas de idiomas', trecho: 'escolas de\nidiomas' }])]),
+    ),
+    [],
+  )
+
+  const problemas = conferirFiltros(
+    saas,
+    icp,
+    pronta([
+      perfil([
+        { conceito: 'funcionarios', valor: '50 a 500 funcionários', trecho: '50 a 500 funcionários' },
+        { conceito: 'sede', valor: 'MG', trecho: 'Belo Horizonte' },
+        { conceito: 'atuacao', valor: 'Minas Gerais', trecho: 'escolas de idiomas com mensalidade' },
+      ]),
+      { ...perfil([], []), nome: 'ICP secundário' },
+    ]),
+  )
+  assert(problemas.some((p) => ehGrave(p) && p.includes('funcionarios')), problemas.join('\n'))
+  assert(problemas.some((p) => ehGrave(p) && p.includes('sede')), problemas.join('\n'))
+  assert(problemas.some((p) => ehGrave(p) && p.includes('atuacao')), problemas.join('\n'))
+  assert(problemas.some((p) => p.includes('sem trecho no ICP')), problemas.join('\n'))
+  assert(problemas.some((p) => p.includes('ICP secundário: sem setor nem palavra-chave')), problemas.join('\n'))
+
+  const varios = CASOS.find((c) => c.tipo === 'varios_icps')!
+  assert(conferirFiltros(varios, icp, pronta([perfil([])])).some((p) => p.includes('menos de 2 recortes')))
+  assertEquals(conferirFiltros(varios, icp, { estado: 'falha_traducao', contextoVersao: 1, fonte: 'linkedin', perfis: [], mensagem: '' }), ['preparação falha_traducao'])
 })
