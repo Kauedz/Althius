@@ -71,13 +71,8 @@ Implementar apenas após os bloqueadores. Consultar a spec completa e as regras 
     Playbook abre o Contexto da empresa, as abas não têm Playbook nem Memória, o Mercado mostra os perfis do contexto e a
     busca traz a candidata, o kanban não mostra critério nem "Pedir ao Ethos", e a Memória do Scopus mostra os três textos;
     sem erro no console. O pgTAP roda no CI (sem Docker na máquina).
-  - Passos do Nan (nesta ordem; o runner novo aceita o banco antigo):
-    1. Publicar as funções:
-       `npx supabase functions deploy reply-proposal-runner --project-ref ycbdilsmydvzezhlymty`
-       `npx supabase functions deploy signal-plan --project-ref ycbdilsmydvzezhlymty`
-       `npx supabase functions deploy account-discovery --project-ref ycbdilsmydvzezhlymty`
-    2. A migration `20261221050000_retirada_do_playbook.sql` é aplicada no remoto pelo fluxo de `docs/agents/migrations.md`,
-       com o CI verde e antes do merge.
-    3. Remover a função sem uso do projeto (opcional; nada a chama):
-       `npx supabase functions delete icp-site-read --project-ref ycbdilsmydvzezhlymty`
-    Nenhum segredo novo.
+  - Passos do Nan: seguir a [ordem de publicação da spec](../validacao.md#ordem-de-publicação). Nenhum segredo novo.
+- 2026-11-08: no ajuste solicitado após a validação remota, `propostas_de_resposta.sql` passou a fixar o relógio
+  da agenda em dia útil e a restringir consultas e alterações aos dados da própria fixture. As 132 asserções foram
+  mantidas e passaram em transação com rollback na pré-produção. O teste do ticket 06 também passou (16/16) após
+  corrigir os papéis das consultas privadas e verificar a sugestão sem ICP antes de cadastrar o contexto do Sul.

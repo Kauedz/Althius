@@ -117,7 +117,9 @@ pendente como "o texto não determina um valor exato", à vista e sem filtrar.
 ## Checks
 
 Rodados nesta máquina em 07/11/2026 (resultado no comentário do ticket 08): `deno test supabase/functions`, `deno check`,
-`npm run lint`, `tsc -b` e `vitest run`. O pgTAP roda no CI.
+`npm run lint`, `tsc -b` e `vitest run`. Em 08/11/2026, os oito arquivos pgTAP relacionados à spec passaram
+com 247/247 asserções em transações com rollback na pré-produção, incluindo os ajustes dos testes de Agentes e
+Propostas de resposta. Essa validação é separada do CI do PR.
 
 ## Passos do Nan
 
@@ -137,5 +139,54 @@ Rodados nesta máquina em 07/11/2026 (resultado no comentário do ticket 08): `d
    código 1 quando algum caso tem falha grave. `Read-Host -MaskInput` pede o PowerShell 7.
 3. Conferir a tela AI Context do Clay com a conta do Clay, lado a lado com `issues/prints/08-configuracoes-contexto.jpg`,
    se quiser confirmar a comparação da seção 3 além da descrição da spec.
-4. Os passos do ticket 07 (migration `20261221050000_retirada_do_playbook.sql` e deploy das funções) continuam valendo
-   antes do merge. Este ticket não traz migration nem função nova.
+4. Seguir a [ordem de publicação](#ordem-de-publicação). Este ticket não traz migration nem função nova.
+
+## Ordem de publicação
+
+Esta sequência consolida os passos dos tickets 01 a 08 para o projeto `ycbdilsmydvzezhlymty`. A versão de transição
+de `account-discovery` atende tanto ao frontend publicado, que chama `criteria`, quanto ao frontend novo, que chama
+`prepare` e busca por perfis.
+
+1. Confirmar a aprovação do PR e o CI verde no commit que será publicado. Conferir o histórico remoto e validar as
+   migrações e os pgTAP com rollback, conforme [o procedimento do repositório](../../docs/agents/migrations.md).
+2. Aplicar em ordem as migrações `20261221000000` a `20261221040000`. Conferir as versões e os hashes no histórico
+   remoto. A primeira cria `get_company_context`, usada por `account-discovery` e `signal-plan`.
+3. Na raiz do checkout revisado, publicar as funções abaixo. Reiniciar o worker do Hermes com o código novo após
+   publicar `agent-conversation`, conforme o [README do worker](../../supabase/functions/_hermes-worker/README.md).
+   O `reply-proposal-runner` novo aceita a resposta antiga do banco enquanto a última migração ainda está pendente.
+
+   ```powershell
+   npx supabase functions deploy company-context-generation --project-ref ycbdilsmydvzezhlymty
+   npx supabase functions deploy account-fit-explanation --project-ref ycbdilsmydvzezhlymty
+   npx supabase functions deploy agent-conversation --project-ref ycbdilsmydvzezhlymty
+   npx supabase functions deploy signal-plan --project-ref ycbdilsmydvzezhlymty
+   npx supabase functions deploy reply-proposal-runner --project-ref ycbdilsmydvzezhlymty
+   ```
+
+4. Publicar somente `account-discovery` do commit de transição `47b66d7f`, em outro checkout. Conferir que a
+   versão implantada responde a `criteria` pelo frontend atual e a `prepare` com uma sessão autorizada.
+
+   ```powershell
+   git worktree add --detach ../althius-transicao-contexto 47b66d7f
+   Push-Location ../althius-transicao-contexto
+   try {
+     npx supabase functions deploy account-discovery --project-ref ycbdilsmydvzezhlymty
+     if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar account-discovery de transição' }
+   } finally {
+     Pop-Location
+   }
+   ```
+
+5. Após confirmar que o `reply-proposal-runner` novo está ativo, aplicar `20261221050000_retirada_do_playbook.sql`,
+   ainda antes do merge. Conferir o hash no histórico e os avisos de segurança do Supabase. O runner antigo espera
+   a chave `playbook`, que a migração substitui por `contexto`.
+6. Fazer o merge e aguardar o auto-publish. Conferir na aplicação publicada que o Mercado usa `prepare` e que o
+   onboarding usa `company-context-generation`. Só então publicar `account-discovery` do checkout revisado e,
+   se desejado, remover `icp-site-read`. Durante a transição, manter `icp-site-read` disponível para o onboarding
+   antigo.
+
+   ```powershell
+   npx supabase functions deploy account-discovery --project-ref ycbdilsmydvzezhlymty
+   # Opcional, depois de confirmar o onboarding publicado:
+   npx supabase functions delete icp-site-read --project-ref ycbdilsmydvzezhlymty
+   ```

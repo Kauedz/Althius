@@ -80,9 +80,11 @@ set local role service_role;
 
 select is((public.agent_run_company_context(current_setting('t.run1')::uuid) ->> 'version')::integer, 1,
   'a Execução em andamento continua na versão que começou a usar');
+reset role;
 select is((select company_context_version from private.agent_runs where id = current_setting('t.run1')::uuid), 1,
   'e a versão usada fica registrada na Execução');
 
+set local role service_role;
 select public.claim_agent_run(current_setting('t.run2')::uuid);
 select is(public.agent_run_company_context(current_setting('t.run2')::uuid) ->> 'icp', 'Construtoras.',
   'a próxima Execução usa a versão nova');
@@ -91,18 +93,9 @@ select is((public.agent_run_company_context(current_setting('t.run2')::uuid) ->>
 select is(public.agent_run_company_context(current_setting('t.run_sul')::uuid),
   '{"version": null, "empresa": "", "icp": "", "personas": ""}'::jsonb,
   'o Sul, sem contexto, recebe os textos vazios e nunca o contexto do Norte');
+reset role;
 select is((select company_context_version from private.agent_runs where id = current_setting('t.run_sul')::uuid), 0,
   'a Execução registra que rodou sem contexto');
-
--- A Carla salva o primeiro contexto do Sul no meio da Execução: ela continua sem contexto até o fim.
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.sub', 'e0600000-0000-0000-0000-000000000003', true);
-select public.save_company_context('e0600000-0000-0000-0000-000000000020', 'A Sul vende seguros.', 'Corretoras.', 'Gerente.', null);
-reset role;
-set local role service_role;
-select is(public.agent_run_company_context(current_setting('t.run_sul')::uuid) ->> 'empresa', '',
-  'a Execução que começou sem contexto não muda no meio');
 
 select is(
   (select e ->> 'id' from jsonb_array_elements(private.compute_agent_prompt_suggestions(
@@ -114,6 +107,16 @@ select is(
     'e0600000-0000-0000-0000-000000000010', 'scopus', 'e0600000-0000-0000-0000-000000000001')) e
    where e ->> 'id' like 'scopus-%icp'),
   'scopus-revisar-icp', 'com o Perfil de cliente ideal no contexto, sugere revisá-lo');
+
+-- A Carla salva o primeiro contexto do Sul no meio da Execução: ela continua sem contexto até o fim.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'e0600000-0000-0000-0000-000000000003', true);
+select public.save_company_context('e0600000-0000-0000-0000-000000000020', 'A Sul vende seguros.', 'Corretoras.', 'Gerente.', null);
+reset role;
+set local role service_role;
+select is(public.agent_run_company_context(current_setting('t.run_sul')::uuid) ->> 'empresa', '',
+  'a Execução que começou sem contexto não muda no meio');
+reset role;
 
 select * from finish();
 rollback;

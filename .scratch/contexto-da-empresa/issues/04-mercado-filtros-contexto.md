@@ -45,4 +45,5 @@ Implementar apenas após os bloqueadores. Consultar a spec completa e as regras 
   - Tela: diálogo por perfil com filtros editáveis, origem no texto e "Não aplicado pela fonte"; ajustes não tocam no contexto salvo. Aviso da última busca separa zero resultados de falha da fonte. A Demonstração continua no caminho antigo até o ticket 07.
   - Fica de fora: exclusões estruturadas ("exceto MEI") viram termo de exclusão; não há seletor de fonte no diálogo.
   - Testes: deno `preparacao.test.ts` (9) e `busca-por-perfis.test.ts` (7), suíte Deno 1977/0; vitest `busca-pelo-contexto.test.tsx` (7) e `supabase-descobertas.test.ts`; `tsc -b`, oxlint e deno lint limpos. Suíte vitest: as únicas falhas (`gaveta-de-historico.test.tsx` e, intermitente, `contexto-da-empresa-geracao.test.tsx`) também falham sem estas mudanças.
-  - Passos do Nan: publicar a função (`npx supabase functions deploy account-discovery --project-ref ycbdilsmydvzezhlymty`). Nenhum segredo novo (usa `SIGNALS_LLM_PROVIDER` já configurado); nenhuma migration.
+  - Passos do Nan: publicar `account-discovery` na [ordem de publicação da spec](../validacao.md#ordem-de-publicação).
+    Nenhum segredo novo (usa `SIGNALS_LLM_PROVIDER` já configurado); nenhuma migration.

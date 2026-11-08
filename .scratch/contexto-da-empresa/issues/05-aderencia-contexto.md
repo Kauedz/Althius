@@ -44,7 +44,5 @@ Implementar apenas após os bloqueadores. Consultar a spec completa e as regras 
   - Tela: a fonte calcula `aderencia` pelos motivos; o selo vira "Encaixe não confirmado" (tom do sem dado) quando há critério sem dado ou pendente e nada contra, e não passa de médio quando um critério verificado não bate (Sinais não levam a alto); o detalhe mostra "A verificar na qualificação" sempre; "Por que essa Aderência?" mostra os grupos e a versão/trechos do contexto. A ordem da lista e o nível com Sinais não mudam.
   - Fica de fora: a empresa achada só por Sinal (sem critério avaliado) continua com o selo do nível da nota, como antes; a Demonstração segue no texto antigo.
   - Testes: deno `account-fit-explanation/handler.test.ts` (24), `busca-por-perfis.test.ts`, suíte Deno 1986/0; vitest `aderencia-pelo-contexto.test.tsx` (2), `aderencia-explicada.test.ts` (5), suíte 2162 com a falha conhecida de `gaveta-de-historico.test.tsx`; `tsc -b`, oxlint e `deno check` limpos. O pgTAP roda no CI (sem Docker na máquina).
-  - Passos do Nan: aplicar a migration `20261221030000_aderencia_pelo_contexto.sql` (pelo fluxo de `docs/agents/migrations.md`) e publicar as duas funções:
-    `npx supabase functions deploy account-fit-explanation --project-ref ycbdilsmydvzezhlymty`
-    `npx supabase functions deploy account-discovery --project-ref ycbdilsmydvzezhlymty`
-    Nenhum segredo novo.
+  - Passos do Nan: aplicar a migração de Aderência e publicar `account-fit-explanation` e `account-discovery` na
+    [ordem de publicação da spec](../validacao.md#ordem-de-publicação). Nenhum segredo novo.

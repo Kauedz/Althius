@@ -46,4 +46,5 @@ Implementar apenas após os bloqueadores. Consultar a spec completa e as regras 
   - Workspace existente: Configurações (ticket 02) já usa o site cadastrado ou pede o site; nada é copiado do Playbook.
   - Fora do escopo, anotado: trocar o domínio no Day0 com contexto já vigente atualiza o site cadastrado sem gerar de novo (a nova leitura é decisão do Administrador em Configurações). No Workspace operacional a Casca não lê o contexto: o checklist só existe na Demonstração.
   - Testes: vitest `contexto-no-onboarding.test.ts` (5), `aviso-do-contexto-pendente.test.tsx` (5), `day0-operacional.test.tsx` (14), `onboarding.test.tsx` (44), `supabase-onboarding.test.ts` (3), `regras-onboarding.test.ts` (5). Suíte completa verde exceto `gaveta-de-historico.test.tsx`, que já falha na `main`.
-  - Passos do Nan: nenhum novo além dos do ticket 02 (publicar `company-context-generation`). A migration é aplicada pelo agente no remoto, pelo `docs/agents/migrations.md`, quando o CI ficar verde e antes do merge.
+  - Passos do Nan: seguir a [ordem de publicação da spec](../validacao.md#ordem-de-publicação), que inclui a migração
+    do onboarding e a publicação de `company-context-generation`.

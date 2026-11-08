@@ -3,6 +3,12 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(132);
 
+-- A preparação precisa liberar um envio em dia útil, mesmo quando a suíte roda no fim de semana.
+create or replace function private.clock_now() returns timestamptz
+language sql stable set search_path = '' as $$
+  select '2026-10-20 10:00:00-03'::timestamptz;
+$$;
+
 -- A chamada HTTP do Executor das propostas fica sob controle do teste, só dentro desta transação.
 create temporary table chamadas (url text, token text);
 create or replace function private.post_to_reply_proposal_runner(p_url text, p_token text) returns void
@@ -22,7 +28,10 @@ values
 insert into public.workspaces (id, kind, name) values
   ('69000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('69000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
-insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at)
+select w.id, 'escala', date_trunc('month', now()) from public.workspaces w
+where w.id in ('69000000-0000-0000-0000-000000000001', '69000000-0000-0000-0000-000000000002')
+on conflict (workspace_id) do nothing;
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000001', 'member', true),
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002', 'admin', true),
@@ -194,7 +203,8 @@ select outcome from public.ingest_unipile_email_event('evt-5b', 'email.new', 'un
   pg_temp.email('email-r1', 'thread-1', 'maria@empresa-alvo.test', 'Re: Apresentação'), '{}');
 reset role;
 select is(
-  (select count(*)::integer from private.reply_proposals) || '/' || (select count(*)::integer from private.reply_proposal_jobs),
+  (select count(*)::integer from private.reply_proposals where sequence_id = pg_temp.i('sequencia')) || '/' ||
+  (select count(*)::integer from private.reply_proposal_jobs where workspace_id = '69000000-0000-0000-0000-000000000001'),
   '1/1', 'reentregar o evento ou mover o e-mail não cria outra proposta nem outro trabalho');
 select is(
   private.enqueue_reply_proposal('69000000-0000-0000-0000-000000000001', (select valor::uuid from ids where chave = 'sequencia'),
@@ -203,7 +213,8 @@ select is(
   pg_temp.proposta((select interaction_id from r1)),
   'pedir de novo a proposta da mesma mensagem devolve a que já existe');
 select is(
-  (select count(*)::integer from private.reply_proposals) || '/' || (select count(*)::integer from private.reply_proposal_jobs),
+  (select count(*)::integer from private.reply_proposals where sequence_id = pg_temp.i('sequencia')) || '/' ||
+  (select count(*)::integer from private.reply_proposal_jobs where workspace_id = '69000000-0000-0000-0000-000000000001'),
   '1/1', 'e continua uma proposta e um trabalho');
 
 -- 4. Sem remetente não há a quem responder: a resposta é gravada e a Sequência pausa, sem proposta e sem erro.
@@ -216,7 +227,7 @@ select lives_ok(
       (select valor::uuid from ids where chave = 'sequencia'), (select id from private.sender_accounts where unipile_account_id = 'unipile-google-9'),
       'email-sem-remetente', now())$$,
   'uma resposta sem remetente é gravada sem erro');
-select is((select count(*)::integer from private.reply_proposals), 1, 'e não cria proposta');
+select is((select count(*)::integer from private.reply_proposals where sequence_id = pg_temp.i('sequencia')), 1, 'e não cria proposta');
 
 -- 5. Privacidade: só a titular lê a proposta; Administrador, Membro e outro Workspace não leem nem decidem.
 set local role authenticated;
@@ -325,11 +336,13 @@ select is(public.save_generated_reply((select job_id from reserva), (select clai
 reset role;
 select is(
   (select p.status || '|' || p.revision || '|' || p.model || '|' || j.status
-   from private.reply_proposals p join private.reply_proposal_jobs j on j.proposal_id = p.id),
+   from private.reply_proposals p join private.reply_proposal_jobs j on j.proposal_id = p.id
+   where p.origin_interaction_id = (select interaction_id from r1)),
   'pronta|1|modelo-teste|done', 'na revisão 1, com o modelo, e o trabalho concluído');
 select is((select status from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia')), 'pausada',
   'gerar a proposta não retoma a Sequência');
-select is((select count(*)::integer from private.sequence_step_sends where status in ('sending', 'sent')), 1,
+select is((select count(*)::integer from private.sequence_step_sends
+  where sequence_id = pg_temp.i('sequencia') and status in ('sending', 'sent')), 1,
   'e não cria nenhum envio: só o passo 1, de antes');
 
 -- 9. Falha da IA: a resposta e a pausa ficam; um motivo passageiro tenta de novo mais tarde, até o limite; depois a proposta
@@ -351,7 +364,8 @@ select is(
   (select p.status || '|' || (j.run_after > now() + interval '1 minute')::text || '|' || j.last_error
    from private.reply_proposals p join private.reply_proposal_jobs j on j.proposal_id = p.id where p.id = pg_temp.i('p1')),
   'gerando|true|model_timeout', 'com a próxima tentativa e o motivo gravados');
-update private.reply_proposal_jobs set run_after = now() - interval '1 second' where status = 'queued';
+update private.reply_proposal_jobs set run_after = now() - interval '1 second'
+where proposal_id = pg_temp.i('p1') and status = 'queued';
 set local role service_role;
 create temporary table falha2 as select * from public.claim_reply_proposal_jobs(5);
 grant all on falha2 to service_role;
@@ -364,7 +378,8 @@ select is(
   'falhou|model_auth', 'a proposta fica "falhou", com o motivo');
 select is((select status from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia')), 'pausada',
   'a pausa continua');
-select is((select count(*)::integer from private.received_emails where provider_thread_id = 'thread-x1'), 1,
+select is((select count(*)::integer from private.received_emails
+  where sequence_id = pg_temp.i('sequencia') and provider_thread_id = 'thread-x1'), 1,
   'e a resposta recebida continua guardada');
 set local role authenticated;
 select pg_temp.sou('68000000-0000-0000-0000-000000000001');
@@ -425,7 +440,8 @@ select is((select decided_at from private.reply_proposals where origin_interacti
   (select decided_at from decisao), 'sem refazer a decisão');
 select is((select status from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia')), 'pausada',
   'aprovar NÃO retoma a Sequência');
-select is((select count(*)::integer from public.account_interactions where kind = 'email-enviado'), 1,
+select is((select count(*)::integer from public.account_interactions
+  where target_account_id = pg_temp.i('conta') and kind = 'email-enviado'), 1,
   'e não envia nada: nenhuma Interação de envio além do passo 1');
 
 -- 11. Editar uma proposta aprovada desfaz a Aprovação: a nova revisão precisa de nova Aprovação.
@@ -471,7 +487,8 @@ select is(public.record_reply_send_result(pg_temp.proposta((select interaction_i
 select is((select outcome from public.release_approved_reply(pg_temp.proposta((select interaction_id from r1)),
   '68000000-0000-0000-0000-000000000001')), 'already_sent', 'uma enviada não é liberada outra vez');
 reset role;
-select is((select count(*)::integer from public.account_interactions where kind = 'email-enviado'), 2,
+select is((select count(*)::integer from public.account_interactions
+  where target_account_id = pg_temp.i('conta') and kind = 'email-enviado'), 2,
   'o envio registra uma Interação "e-mail enviado", sem conteúdo');
 select is(
   (select provider_email_id || '|' || provider_message_id || '|' || send_attempts from private.reply_proposals
@@ -595,7 +612,8 @@ update public.sales_responsibilities set owner_user_id = '68000000-0000-0000-000
 where target_account_id = (select valor from ids where chave = 'conta');
 alter table public.sales_responsibilities enable trigger sales_responsibilities_end_sequences;
 select is(pg_temp.estado(pg_temp.i('p3')), 'aprovada', 'nenhum bloqueio mudou a proposta: continua aprovada');
-select is((select count(*)::integer from private.reply_proposals where send_attempts > 0), 1,
+select is((select count(*)::integer from private.reply_proposals
+  where sequence_id = pg_temp.i('sequencia') and send_attempts > 0), 1,
   'e nenhum envio foi tentado além do primeiro');
 
 -- 16. Falha do provedor: volta a aprovada, para tentar de novo com a mesma revisão; a dúvida (incerta) exige conferir antes.
@@ -638,17 +656,18 @@ set local role service_role;
 select outcome from public.release_approved_reply(pg_temp.i('p5'), '68000000-0000-0000-0000-000000000001');
 reset role;
 update private.reply_proposals set sending_at = now() - interval '11 minutes' where id = pg_temp.i('p5');
-select private.expire_stale_reply_sends(null);
+select private.expire_stale_reply_sends(pg_temp.i('p5'));
 select is(pg_temp.estado(pg_temp.i('p5')), 'incerta', 'um envio em voo há mais de 10 minutos passa a incerto');
 set local role authenticated;
 select pg_temp.sou('68000000-0000-0000-0000-000000000001');
 select is(public.resolve_uncertain_reply_proposal(pg_temp.i('p5'), true), 'enviada', 'a titular confere a caixa de saída e diz que saiu');
 reset role;
-select is((select count(*)::integer from public.account_interactions where kind = 'email-enviado'), 3,
+select is((select count(*)::integer from public.account_interactions
+  where target_account_id = pg_temp.i('conta') and kind = 'email-enviado'), 3,
   'que também registra a Interação "e-mail enviado"');
 
 -- 19. Apagar os dados apaga a proposta: a resposta recebida, a Conta-alvo.
-delete from private.received_emails where provider_email_id = 'email-x4';
+delete from private.received_emails where sequence_id = pg_temp.i('sequencia') and provider_email_id = 'email-x4';
 select is((select count(*)::integer from private.reply_proposals where id = pg_temp.i('p4')), 0,
   'apagar a resposta recebida apaga a proposta que a cita');
 
@@ -666,7 +685,7 @@ select is(private.kick_reply_proposal_runner(), false, 'sem endereço configurad
 select throws_ok($$select private.configure_reply_proposal_runner('http://abc.supabase.co')$$, '22023',
   'project url must look like https://<ref>.supabase.co', 'o endereço aceita só https');
 select private.configure_sequence_runner('https://abc.supabase.co/');
-update private.reply_proposal_jobs set status = 'done';
+update private.reply_proposal_jobs set status = 'done' where workspace_id = '69000000-0000-0000-0000-000000000001';
 select is(private.kick_reply_proposal_runner(), false, 'com o endereço da Sequência mas sem trabalho devido, não chama');
 update private.reply_proposal_jobs set status = 'queued', run_after = now() where proposal_id = pg_temp.i('p7');
 select is(private.kick_reply_proposal_runner(), true, 'com trabalho devido, o banco chama a função');
@@ -694,12 +713,14 @@ select lives_ok(
       (select valor::uuid from ids where chave = 'sequencia'), (select id from private.sender_accounts where unipile_account_id = 'unipile-google-9'),
       'email-falha', 'maria@empresa-alvo.test', now())$$,
   'se criar a proposta falhar, a resposta é gravada do mesmo jeito');
-select is((select count(*)::integer from private.received_emails where provider_email_id = 'email-falha'), 1, 'e fica guardada');
+select is((select count(*)::integer from private.received_emails
+  where sequence_id = pg_temp.i('sequencia') and provider_email_id = 'email-falha'), 1, 'e fica guardada');
 
 -- 22. Apagar a Conta-alvo apaga todas as propostas dela (vale para qualquer canal).
 insert into ids select 'p6', pg_temp.aprovada(6)::text;
 update public.target_accounts set deleted_at = now() where id = pg_temp.i('conta');
-select is((select count(*)::integer from private.reply_proposals), 0, 'apagar a Conta-alvo apaga todas as propostas dela');
+select is((select count(*)::integer from private.reply_proposals where target_account_id = pg_temp.i('conta')),
+  0, 'apagar a Conta-alvo apaga todas as propostas dela');
 
 
 select * from finish();
