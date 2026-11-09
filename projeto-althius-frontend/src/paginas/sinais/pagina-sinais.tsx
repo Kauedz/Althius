@@ -7,12 +7,12 @@ import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import {
   useAmbiente,
-  useDados,
   useDadosDeContas,
   useDadosDeSequencias,
   useDadosDeSinais,
   useFonteDeContas,
 } from '@/fonte/contexto'
+import { useContextoDaEmpresaVigente } from '@/fonte/contexto-da-empresa-vigente'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { FAMILIAS, tipoPorId } from './catalogo'
@@ -131,13 +131,13 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const { dados: sinaisCarregados, recarregar: recarregarSinais } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: sequencias } = useDadosDeSequencias((f) => f.sequencias(), [])
-  const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
+  const contextoDaEmpresa = useContextoDaEmpresaVigente()
   const { pedidos, avisar, avisado } = usePedidosDaVitrine()
   const sinais = sinaisCarregados ?? (operacional ? undefined : SINAIS_MOCK)
   const encontrados = sinais?.length
   const totalAtivos = cards.reduce((soma, card) => soma + ativosDoCard(card, monitoramentos), 0)
-  const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
-  const nichoDoIcp = nichoDoWorkspace(segmentos)
+  // O nicho sai do Perfil de cliente ideal do Contexto da empresa (contexto-da-empresa 07).
+  const nichoDoIcp = nichoDoWorkspace(contextoDaEmpresa?.icp ?? '')
 
   // No Workspace operacional, a prévia do Sinal da semana busca disparos novos a cada minuto.
   useEffect(() => {
@@ -228,8 +228,8 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
             titulo="Para o seu nicho"
             subtitulo={
               nichoDoIcp
-                ? `${nichoDoIcp.nome}, pelos Segmentos do ICP do Workspace`
-                : 'Sinais que valem para qualquer nicho. Descreva os Segmentos do ICP na Memória para afinar.'
+                ? `${nichoDoIcp.nome}, pelo Perfil de cliente ideal do Contexto da empresa`
+                : 'Sinais que valem para qualquer nicho. Descreva o Perfil de cliente ideal no Contexto da empresa para afinar.'
             }
           >
             <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} estadoDe={estadoDe} />

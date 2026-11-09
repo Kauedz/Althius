@@ -4,15 +4,17 @@ import { Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
+import { useContextoDaEmpresaVigente } from '@/fonte/contexto-da-empresa-vigente'
+import { CAMPOS_DO_CONTEXTO, type VersaoDoContexto } from '@/fonte/contexto-da-empresa-tipos'
+import { ENDERECO_DO_CONTEXTO } from '@/fonte/contexto-no-onboarding'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
-import { DOCUMENTOS_DA_MEMORIA, frasesDo } from '@/fonte/regras-memoria'
-import type { Agente, DocumentoDaMemoria, DocumentoVigente, Fato, MemoriaDoWorkspace } from '@/fonte/tipos'
+import type { Agente, Fato } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 
 export function SecaoMemoria({ agente }: { agente: Agente }) {
   const fatos = useDados((fonte) => fonte.memoria(agente.id), [agente.id])
   const workspace = useDados((fonte) => fonte.workspace(), [])
-  const memoriaDoWorkspace = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
+  const contexto = useContextoDaEmpresaVigente()
 
   return (
     <section aria-labelledby="titulo-memoria" className="flex max-w-3xl flex-col gap-6">
@@ -24,8 +26,8 @@ export function SecaoMemoria({ agente }: { agente: Agente }) {
         <p className="text-sm text-al-muted">
           Esta é a Memória do Agente: as notas e preferências que só {agente.nome} guarda. O que vale para todos os
           Agentes, como o ICP e as Personas, fica no{' '}
-          <Link to="/configuracoes/memoria/icp" className="text-al-ink underline underline-offset-2">
-            Contexto do Workspace
+          <Link to={ENDERECO_DO_CONTEXTO} className="text-al-ink underline underline-offset-2">
+            Contexto da empresa
           </Link>
           .
         </p>
@@ -41,57 +43,37 @@ export function SecaoMemoria({ agente }: { agente: Agente }) {
           ))}
         </ul>
       )}
-      {memoriaDoWorkspace && <ContextoDoWorkspace memoria={memoriaDoWorkspace} />}
+      {contexto !== undefined && <ContextoDaEmpresaDoAgente vigente={contexto} />}
     </section>
   )
 }
 
 /**
- * O contexto compartilhado que o Agente usa, lido da Memória do Workspace a cada abertura: não é um Fato
- * dele nem uma cópia. Muda só com a aprovação de uma revisão, feita em Configurações.
+ * O contexto compartilhado que o Agente usa: os três textos vigentes do Contexto da empresa (contexto-da-empresa 07),
+ * lidos a cada abertura. Não é um Fato dele nem uma cópia; só um Administrador o edita, em Configurações.
  */
-function ContextoDoWorkspace({ memoria }: { memoria: MemoriaDoWorkspace }) {
+function ContextoDaEmpresaDoAgente({ vigente }: { vigente: VersaoDoContexto | null }) {
   return (
-    <section aria-label="Contexto do Workspace" className="flex flex-col gap-4 border-t border-al-line pt-6">
+    <section aria-label="Contexto da empresa" className="flex flex-col gap-4 border-t border-al-line pt-6">
       <div className="flex flex-col gap-1">
-        <h3 className="titulo-secao text-lg">Contexto do Workspace</h3>
+        <h3 className="titulo-secao text-lg">Contexto da empresa</h3>
         <p className="text-sm text-al-muted">
-          O ICP e as Personas vigentes da{' '}
-          <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
-            Memória do Workspace
+          {vigente
+            ? `Versão ${vigente.versao}, de ${formatarDiaIsoPorExtenso(vigente.em.slice(0, 10))}. Vale para todos os Agentes e não se edita aqui: um Administrador edita no `
+            : 'O Workspace ainda não tem Contexto da empresa. Um Administrador gera ou escreve no '}
+          <Link to={ENDERECO_DO_CONTEXTO} className="text-al-ink underline-offset-4 hover:underline">
+            Contexto da empresa
           </Link>
-          . Valem para todos os Agentes e não se editam aqui.
+          .
         </p>
       </div>
-      {(Object.keys(DOCUMENTOS_DA_MEMORIA) as DocumentoDaMemoria[]).map((id) => (
-        <DocumentoDoContexto key={id} documento={id} vigente={memoria[id]} />
-      ))}
-    </section>
-  )
-}
-
-/** Um documento da Memória do Workspace, com o link para a aba dele em Configurações. */
-function DocumentoDoContexto({ documento, vigente }: { documento: DocumentoDaMemoria; vigente: DocumentoVigente }) {
-  const { nome } = DOCUMENTOS_DA_MEMORIA[documento]
-  const { concordar } = frasesDo(documento)
-  return (
-    <section aria-label={nome} className="flex flex-col gap-2">
-      <h4 className="flex items-baseline gap-3">
-        <Link to={`/configuracoes/memoria/${documento}`} className="rotulo text-al-ink underline-offset-4 hover:underline">
-          {nome}
-        </Link>
-        <span className="text-xs text-al-muted">
-          {concordar('Aprovado', 'Aprovadas')} em {formatarDiaIsoPorExtenso(vigente.aprovadoEm)}
-        </span>
-      </h4>
-      <dl className="grid grid-cols-[12rem_1fr] gap-x-8 gap-y-2 text-sm">
-        {vigente.secoes.map((secao) => (
-          <div key={secao.titulo} className="contents">
-            <dt className="rotulo pt-0.5">{secao.titulo}</dt>
-            <dd>{secao.texto}</dd>
-          </div>
+      {vigente &&
+        CAMPOS_DO_CONTEXTO.filter(({ id }) => vigente[id].trim()).map(({ id, nome }) => (
+          <section key={id} aria-label={nome} className="flex flex-col gap-2">
+            <h4 className="rotulo">{nome}</h4>
+            <p className="text-sm whitespace-pre-line">{vigente[id]}</p>
+          </section>
         ))}
-      </dl>
     </section>
   )
 }

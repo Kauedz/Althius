@@ -1,14 +1,14 @@
 // As Aprovações reais do Workspace operacional (CRM-15): a fila que os Agentes alimentam quando a Permissão é Propor.
 // Tudo passa pelas funções do banco (migration aprovacoes_reais): todo Participante ativo lê a fila; só um
-// Administrador decide, e a pendente vence em 7 dias. Na mesma fila vem a revisão de uma seção do Playbook que o Scopus
-// ou o Ethos propôs (CRM-09, ADR-0010): ela não tem Integração, e aprovar já grava a versão nova no banco. E vem a
+// Administrador decide, e a pendente vence em 7 dias. Na mesma fila vem, como registro, a revisão de uma seção do
+// Playbook que o Scopus ou o Ethos propôs antes da retirada dele (CRM-09, contexto-da-empresa 07): a tela não a decide
+// mais. E vem a
 // Sequência que o Rhetor propôs (cadencia-pela-ia): só o Vendedor responsável a decide e lê o assunto e o corpo, e
 // aprovar já cria a Sequência no banco, sem envio. E vem a Aderência que o Scopus propôs (kanban-de-prospeccao 08): só o
 // Vendedor responsável a decide, e aprovar já grava a Aderência e move o cartão.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehSecaoDoPlaybook } from './playbook-tipos'
-import { conteudoLido } from './supabase-playbook'
 import type {
   Aprovacao,
   AprovacaoDaFila,
@@ -154,7 +154,6 @@ function aprovacaoDa(linha: RegistroDaAprovacao): AprovacaoDaFila {
         tipo: 'playbook',
         secao,
         versaoBase: linha.base_version ?? 0,
-        proposto: linha.state === 'pendente' && linha.proposed_content ? conteudoLido(linha.proposed_content) : null,
         versaoGravada: linha.applied_version ?? null,
         decididaPor: linha.decided_by ?? null,
       },

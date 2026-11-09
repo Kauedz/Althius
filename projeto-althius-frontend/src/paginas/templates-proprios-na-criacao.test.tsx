@@ -64,7 +64,7 @@ describe('Templates próprios na Nova sequência', () => {
     expect(await screen.findByText('7 sequências')).toBeInTheDocument()
     const dialog = await abrirNova(usuario)
     await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Conta-alvo' }), 'canva')
-    await within(dialog).findByRole('checkbox', { name: /Usar a Cadência do Playbook/ })
+    await within(dialog).findByRole('checkbox', { name: /Paula Gomes/ })
 
     await usuario.click(within(dialog).getByRole('button', { name: 'Sugerir meu template' }))
     expect(await within(dialog).findByRole('status')).toHaveTextContent(/escolha manual/i)

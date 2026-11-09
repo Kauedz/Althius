@@ -1,12 +1,12 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { createHandler, type Db } from './handler.ts'
 
-// O handler inteiro, com um banco falso: os filtros saem só da seção ICP do Playbook (ADR-0034).
+// O handler inteiro, com um banco falso. Os filtros do Mercado saem do Contexto da empresa (ação `prepare`, ADR-0035):
+// a ação antiga, que lia a seção ICP do Playbook, foi retirada (contexto-da-empresa 07).
 
 function handlerCom(db: Partial<Db>) {
   const base: Db = {
     userFromJwt: () => Promise.resolve({ userId: 'u1' }),
-    lerIcp: () => Promise.resolve({ version: 4, conteudo: { texto: 'Setor: Seguros' } }),
     actoresDeBusca: () => Promise.resolve([]),
     iniciar: () => Promise.reject(new Error('não deve iniciar')),
     lerProposta: () => Promise.resolve(null),
@@ -28,18 +28,10 @@ async function pedirFiltros(db: Partial<Db>) {
   return { status: res.status, corpo: await res.json() }
 }
 
-Deno.test('handler criteria: os filtros saem da seção ICP do Playbook', async () => {
-  const { status, corpo } = await pedirFiltros({})
-  assertEquals(status, 200)
-  assertEquals(corpo.temIcp, true)
-  assertEquals(corpo.icpVersion, 4)
-  assertEquals(corpo.criteria.setores, ['Seguros'])
-})
-
-Deno.test('handler criteria: sem a seção ICP do Playbook, temIcp é falso e os filtros vêm vazios', async () => {
-  const { status, corpo } = await pedirFiltros({ lerIcp: () => Promise.resolve(null) })
-  assertEquals(status, 200)
-  assertEquals(corpo.temIcp, false)
-  assertEquals(corpo.icpVersion, null)
-  assertEquals(corpo.criteria, { fonte: 'linkedin', setores: [], palavrasChave: [], portes: [], regioes: [], tecnologias: [], excluir: [], cnaes: [] })
+Deno.test('handler criteria: a ação que lia o ICP do Playbook foi retirada e não lê nada', async () => {
+  const { status, corpo } = await pedirFiltros({
+    lerContexto: () => Promise.reject(new Error('não deve ler nada')),
+  })
+  assertEquals(status, 400)
+  assertEquals(corpo.error, 'Ação desconhecida.')
 })

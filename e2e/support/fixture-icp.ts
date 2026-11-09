@@ -1,8 +1,8 @@
-// ICP do Workspace QA, no texto da seção ICP do Playbook (ADR-0034): setor, porte e geografia escritos por extenso, para
-// o teste do Plano do Sinal conferir que a IA usa o ICP.
+// ICP do Workspace QA, no Perfil de cliente ideal do Contexto da empresa (ADR-0035): setor, porte e geografia escritos por
+// extenso, para o teste do Plano do Sinal conferir que a IA usa o ICP.
 export const NOME_DO_WORKSPACE_QA = 'QA Althius (automação)'
 
-export const ICP_DO_PLAYBOOK_DO_QA =
+export const ICP_DO_CONTEXTO_DO_QA =
   'Empresas de logística e transporte de porte médio (51 a 200 funcionários) no Sul do Brasil (Paraná, Santa Catarina ' +
   'e Rio Grande do Sul) e no México. Cargos: Diretor de Operações e Gerente de Logística.'
 

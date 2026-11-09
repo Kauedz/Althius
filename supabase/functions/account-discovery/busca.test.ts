@@ -194,7 +194,7 @@ Deno.test('encaixe: todos os critérios batem, nível alto e um motivo por crit�
   assertEquals(a.score, 100)
   assertEquals(a.excluida, false)
   assertEquals(a.reasons.map((m) => [m.criterio, m.atende]), [['setor', true], ['regiao', true], ['porte', true], ['tecnologia', true]])
-  assertEquals(a.reasons[0].texto, 'Setor: combina com "software".')
+  assertEquals(a.reasons[0].texto, 'Setor: atua em Software Development, que combina com "software".')
   assertEquals(a.reasons[1].texto, 'Região: sede em SP.')
 })
 

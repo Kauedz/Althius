@@ -45,14 +45,16 @@ describe('Catálogo único de Sinais', () => {
   it('o pedido pede o evento, confirma o prazo e lista o status', async () => {
     const { usuario } = renderizarApp('/sinais/pedidos')
     expect(await screen.findByRole('heading', { level: 1, name: 'Falar com a equipe Althius' })).toBeInTheDocument()
-    expect(await screen.findByDisplayValue(/Serviços financeiros/)).toBeInTheDocument()
     expect(await screen.findByDisplayValue('Marina Alves')).toBeInTheDocument()
+    // As empresas não vêm mais pré-preenchidas pelos Segmentos da Memória do Workspace (contexto-da-empresa 07).
+    expect(screen.queryByDisplayValue(/Serviços financeiros/)).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'E-mail' })).toHaveValue('marina.alves@databricks.com')
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar pedido' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/evento/i)
 
     await usuario.type(screen.getByRole('textbox', { name: 'Evento' }), 'Hospitais que anunciam novas alas')
+    await usuario.type(screen.getByRole('textbox', { name: /Empresas ou nicho/ }), 'Hospitais privados')
     await usuario.click(screen.getByRole('radio', { name: 'Esta semana' }))
     await usuario.click(screen.getByRole('button', { name: 'Enviar pedido' }))
 

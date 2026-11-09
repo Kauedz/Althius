@@ -90,25 +90,22 @@ describe('Kanban de Contas', () => {
     expect(screen.queryByRole('group', { name: 'Vista' })).not.toBeInTheDocument()
   })
 
-  it('o cartão mostra o critério do Playbook para o próximo Estágio, e só quando o SLA e metas o traz', async () => {
+  it('sem o Playbook, o cartão não mostra critério de passagem nem oferece pedir ao Ethos (contexto-da-empresa 07)', async () => {
     renderizarApp('/contas?vista=kanban')
     await screen.findByRole('list', { name: 'Kanban de Contas' })
     const doFit = within(coluna('Fit')).getAllByRole('article')[0]
-    expect(await within(doFit).findByText('Para Em abordagem: 3 perfis mapeados e telefone válido')).toBeInTheDocument()
-    const daDescoberta = within(coluna('Descoberta')).getAllByRole('article')[0]
-    expect(within(daDescoberta).queryByText(/^Para /)).not.toBeInTheDocument()
+    expect(within(doFit).queryByText(/^Para /)).not.toBeInTheDocument()
+    expect(within(doFit).queryByRole('button', { name: /Pedir ao Ethos/ })).not.toBeInTheDocument()
   })
 
-  it('mover para um Estágio com critério avisa o que o Playbook pede e deixa a Conta seguir', async () => {
+  it('mover de Estágio não avisa nada do Playbook e a Conta segue', async () => {
     const { usuario } = renderizarApp('/contas?vista=kanban')
     await screen.findByRole('list', { name: 'Kanban de Contas' })
     const cartao = within(coluna('Fit')).getAllByRole('article')[0]
     const nome = cartao.getAttribute('aria-label')!
 
     await usuario.selectOptions(within(cartao).getByRole('combobox', { name: `Mover ${nome}` }), 'em_abordagem')
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      `${nome} foi para Em abordagem. O Playbook pede: 3 perfis mapeados e telefone válido.`,
-    )
     expect(await within(coluna('Em abordagem')).findByRole('article', { name: nome })).toBeInTheDocument()
+    expect(screen.queryByText(/O Playbook pede/)).not.toBeInTheDocument()
   })
 })

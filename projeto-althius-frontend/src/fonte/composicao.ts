@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ambiente, MotivoDasConversasIndisponiveis, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
 import { criarFonteDeAgentesIndisponivel } from './indisponivel'
+import { aguardaDecisao } from './regras'
 import { criarFonteDeOnboardingSupabase } from './supabase-onboarding'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
@@ -14,7 +15,7 @@ import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetent
 import { criarFonteDeConversasSupabase } from './supabase-conversas'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
 import { criarFonteDeAutomacaoSupabase } from './supabase-automacao'
-import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
+import { criarFonteDoContextoDaEmpresaSupabase } from './supabase-contexto-da-empresa'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
@@ -94,7 +95,7 @@ export function criarAmbienteDoWorkspace({
         ? {
             async workspace() {
               const [dados, lista] = await Promise.all([perfil.workspace(), aprovacoes.filaDeAprovacoes().catch(() => [])])
-              return { ...dados, aprovacoesPendentes: lista.filter((a) => a.estado === 'pendente').length }
+              return { ...dados, aprovacoesPendentes: lista.filter(aguardaDecisao).length }
             },
           }
         : {}),
@@ -115,10 +116,10 @@ export function criarAmbienteDoWorkspace({
     fonteDeSinais: criarFonteDeSinaisSupabase(cliente, () => participacao.workspaceId),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
-    fonteDoPlaybook: criarFonteDoPlaybookSupabase(cliente, () => participacao.workspaceId, async () => {
+    fonteDoContextoDaEmpresa: criarFonteDoContextoDaEmpresaSupabase(cliente, () => participacao.workspaceId, async () => {
       const { participantes: quem } = await participantes.participantesDoWorkspace()
       return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
-    }, aprovacoes),
+    }),
     fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
     fonteDeDescobertas: criarFonteDeDescobertasSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,

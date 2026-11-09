@@ -1,77 +1,53 @@
 import { describe, expect, it } from 'vitest'
-import type { ChecklistNorte, EstadoDeOnboarding, LeituraDoSite } from './onboarding-tipos'
-import { aplicarLeitura, identidadeDoWorkspace } from './regras-onboarding'
+import type { ChecklistNorte, EstadoDeOnboarding } from './onboarding-tipos'
+import { identidadeDoWorkspace, progressoDoOnboarding } from './regras-onboarding'
 
-const VAZIO: ChecklistNorte = {
-  miniIcp: '',
-  oQueVende: '',
-  porQueCompram: '',
-  personas: [],
-  produto: 'pendente',
-  persona: 'pendente',
-  sinal: 'pendente',
-}
+const VAZIO: ChecklistNorte = { contexto: 'pendente', sinal: 'pendente' }
 
-const PRIMEIRA: LeituraDoSite = {
-  oQueVende: 'Sensores de vibração.',
-  miniIcp: 'Indústrias de processo contínuo.',
-  porQueCompram: 'Para prever falhas.',
-  personas: ['Gerente de Manutenção'],
-}
+const estado = (mudanca: Partial<EstadoDeOnboarding>) =>
+  ({ workspace: null, checklist: VAZIO, logoDoSite: null, ...mudanca }) as EstadoDeOnboarding
 
-const SEGUNDA: LeituraDoSite = {
-  oQueVende: 'Software para clínicas.',
-  miniIcp: 'Clínicas com mais de dez consultórios.',
-  porQueCompram: 'Para confirmar consultas.',
-  personas: ['Gestora da Clínica'],
-}
+describe('Regras do onboarding: o Contexto da empresa no progresso', () => {
+  const criador = (mudanca: Partial<EstadoDeOnboarding> = {}) =>
+    estado({ ramo: 'criador', day0Concluido: true, dominio: 'norte.test', ...mudanca })
 
-describe('Regras do onboarding: a leitura do site no checklist', () => {
-  it('sem leitura anterior, a leitura preenche o que está vazio e não toca no que a pessoa escreveu', () => {
-    expect(aplicarLeitura({ ...VAZIO, miniIcp: 'Times de receita no Sul.' }, null, PRIMEIRA)).toMatchObject({
-      miniIcp: 'Times de receita no Sul.',
-      oQueVende: PRIMEIRA.oQueVende,
-      porQueCompram: PRIMEIRA.porQueCompram,
-      personas: PRIMEIRA.personas,
-    })
+  it('o Contexto da empresa conta pela versão vigente, não por uma marca do onboarding', () => {
+    expect(progressoDoOnboarding(criador()).proximo).toBe('contexto')
+    expect(progressoDoOnboarding(criador(), true).proximo).toBe('sinal')
+    expect(progressoDoOnboarding(criador({ checklist: { contexto: 'concluido', sinal: 'pendente' } })).proximo).toBe('contexto')
   })
 
-  it('uma nova leitura troca só o que ainda é a sugestão da anterior; o editado e o descartado ficam', () => {
-    const editado = { ...aplicarLeitura(VAZIO, null, PRIMEIRA), oQueVende: 'Consultoria de dados.', personas: [] }
-    expect(aplicarLeitura(editado, PRIMEIRA, SEGUNDA)).toMatchObject({
-      miniIcp: SEGUNDA.miniIcp,
-      porQueCompram: SEGUNDA.porQueCompram,
-      oQueVende: 'Consultoria de dados.',
-      personas: [],
-    })
+  it('com o site pulado, o marco do site fica faltando e o onboarding não chega a 100%', () => {
+    const { marcos, percentual } = progressoDoOnboarding(
+      criador({ dominio: '', sitePulado: true, checklist: { contexto: 'pulado', sinal: 'concluido' } }),
+    )
+    expect(marcos).toEqual([
+      { marco: 'workspace', feito: true },
+      { marco: 'site', feito: false },
+      { marco: 'contexto', feito: false },
+      { marco: 'sinal', feito: true },
+    ])
+    expect(percentual).toBe(50)
   })
 
-  it('devolve um checklist novo, sem mudar o recebido', () => {
-    const checklist = structuredClone(VAZIO)
-    aplicarLeitura(checklist, null, PRIMEIRA)
-    expect(checklist).toEqual(VAZIO)
+  it('completo com Workspace, site, contexto vigente e Sinal', () => {
+    const progresso = progressoDoOnboarding(criador({ checklist: { contexto: 'pendente', sinal: 'concluido' } }), true)
+    expect(progresso).toMatchObject({ percentual: 100, proximo: null })
   })
 })
 
 describe('Regras do onboarding: a identidade do Workspace na Casca', () => {
-  const estado = (mudanca: Partial<EstadoDeOnboarding>) =>
-    ({ workspace: null, checklist: VAZIO, logoDoSite: null, ...mudanca }) as EstadoDeOnboarding
-
   it('sem um Workspace criado com nome, a Casca fica com o da demonstração', () => {
     expect(identidadeDoWorkspace(estado({}))).toBeNull()
     expect(identidadeDoWorkspace(estado({ workspace: { id: 'ws', nomeSugerido: '' } }))).toBeNull()
   })
 
-  it('o Workspace criado aparece com o nome sugerido, o que o Cliente vende e o logo do site', () => {
+  it('o Workspace criado aparece com o nome sugerido e o logo do site; a descrição fica no Contexto da empresa', () => {
     const logo = 'https://nortedados.com.br/favicon.svg'
-    expect(
-      identidadeDoWorkspace(
-        estado({
-          workspace: { id: 'ws', nomeSugerido: 'Norte Dados' },
-          checklist: { ...VAZIO, oQueVende: 'Plataforma de dados.' },
-          logoDoSite: logo,
-        }),
-      ),
-    ).toEqual({ nome: 'Norte Dados', descricao: 'Plataforma de dados.', logo })
+    expect(identidadeDoWorkspace(estado({ workspace: { id: 'ws', nomeSugerido: 'Norte Dados' }, logoDoSite: logo }))).toEqual({
+      nome: 'Norte Dados',
+      descricao: '',
+      logo,
+    })
   })
 })

@@ -30,3 +30,10 @@ Deno.test('o risco devolvido é o do descritor, sem aceitar classificação envi
     ['administrador', 'membro'],
   )
 })
+
+Deno.test('o Canal consulta o Contexto da empresa, e não as seções do Playbook', () => {
+  const contexto = classificarFerramentaWhatsApp('consultar_contexto_da_empresa')
+  assertEquals(contexto?.rpc, 'get_company_context')
+  assertEquals(contexto?.risco, 'leitura')
+  assertEquals(CATALOGO_FERRAMENTAS_WHATSAPP.some((f) => /playbook/i.test(f.nome) || /playbook/i.test(f.rpc)), false)
+})

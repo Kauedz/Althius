@@ -29,8 +29,8 @@ verify_jwt = true
 [functions.account-fit-explanation]
 verify_jwt = true
 
-# Leitura do domínio confirmado no Day0; a função confere o JWT e a confirmação no banco.
-[functions.icp-site-read]
+# Geração do Contexto da empresa pelo site: a função confere o JWT; o banco confere o Administrador e o Workspace.
+[functions.company-context-generation]
 verify_jwt = true
 
 # Pedido de acesso do visitante (acesso-e-planos): o navegador chama com o JWT; o banco reserva o aviso uma vez e limita os envios por usuário.

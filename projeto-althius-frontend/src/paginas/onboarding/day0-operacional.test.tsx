@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
-import { AmbienteProvider, FonteDeOnboardingProvider } from '@/fonte/contexto'
+import { AmbienteProvider, FonteDeOnboardingProvider, FonteDoContextoDaEmpresaProvider } from '@/fonte/contexto'
 import { EntradaNaCasca } from './entrada-na-casca'
 import { PaginaOnboarding } from './pagina-onboarding'
 
@@ -20,12 +20,15 @@ function montar(responder = async (_url: string, _body: Record<string, string>) 
   const tela = render(
     <AmbienteProvider ambiente={ambiente}>
       <FonteDeOnboardingProvider fonte={ambiente.fonteDeOnboarding}>
-        <MemoryRouter initialEntries={[rota]}>
-          <Routes>
-            <Route path="/onboarding" element={<PaginaOnboarding />} />
-            <Route element={<EntradaNaCasca />}><Route path="/" element={<h1>Casca operacional</h1>} /></Route>
-          </Routes>
-        </MemoryRouter>
+        <FonteDoContextoDaEmpresaProvider fonte={ambiente.fonteDoContextoDaEmpresa!}>
+          <MemoryRouter initialEntries={[rota]}>
+            <Routes>
+              <Route path="/onboarding" element={<PaginaOnboarding />} />
+              <Route element={<EntradaNaCasca />}><Route path="/" element={<h1>Casca operacional</h1>} /></Route>
+              <Route path="/configuracoes/contexto" element={<h1>Contexto da empresa</h1>} />
+            </Routes>
+          </MemoryRouter>
+        </FonteDoContextoDaEmpresaProvider>
       </FonteDeOnboardingProvider>
     </AmbienteProvider>,
   )
@@ -107,33 +110,139 @@ describe('Day0 operacional', () => {
   })
 })
 
-describe('Day0 operacional: mini-ICP do Workspace', () => {
-  it('a pessoa criadora preenche os 3 campos do mini-ICP, sem Setor, Porte e Região, e salva pelo Day0', async () => {
-    const registro = { ...INICIAL, etapa: 'convite', papel: 'Founder', comoConheceu: 'Indicação', empresa: 'Norte', dominio: 'norte.test', miniIcp: '', oQueVende: '', porQueCompram: '' }
-    const pedidos: { url: string; body: Record<string, string> }[] = []
-    const responder = async (url: string, body: Record<string, string>) => {
-      pedidos.push({ url, body })
-      if (url.endsWith('/save_my_day0') && body.p_action === 'produto') Object.assign(registro, JSON.parse(body.p_value))
-      return registro as never
+/** O Contexto da empresa como `get_company_context` devolve: sem versão vigente, com o site e a geração dados. */
+function contextoDoBanco({ site = '', generation = null as unknown, vigente = false } = {}) {
+  return vigente
+    ? { version: 1, empresa: 'E', icp: 'I', personas: 'P', origin: 'geracao', updated_by: null, updated_at: '2026-11-06T10:00:00Z', site, generation }
+    : { version: null, empresa: '', icp: '', personas: '', origin: null, updated_by: null, updated_at: null, site, generation }
+}
+
+/** O Day0 e o Contexto da empresa no mesmo backend falso, guardando os pedidos. */
+function backend(day0: Record<string, unknown>, contexto: { site?: string; generation?: unknown; vigente?: boolean } = {}) {
+  const pedidos: { url: string; body: Record<string, string> }[] = []
+  const estadoDoContexto = { site: String(day0.dominio ?? ''), generation: null as unknown, vigente: false, ...contexto }
+  const responder = async (url: string, body: Record<string, string>) => {
+    pedidos.push({ url, body })
+    if (url.endsWith('/save_my_day0')) {
+      if (body.p_action === 'dominio') Object.assign(day0, { dominio: body.p_value, etapa: 'hdyhau' })
+      if (body.p_action === 'pular_site') Object.assign(day0, { sitePulado: true, etapa: 'hdyhau' })
+      if (body.p_action === 'hdyhau') Object.assign(day0, { comoConheceu: body.p_value, etapa: 'convite' })
+      if (body.p_action === 'concluir') Object.assign(day0, { concluido: true, etapa: 'checklist' })
+      if (body.p_action === 'dominio') estadoDoContexto.site = body.p_value
     }
+    if (url.endsWith('/get_company_context')) return contextoDoBanco(estadoDoContexto) as never
+    if (url.endsWith('/company-context-generation')) {
+      estadoDoContexto.generation = { id: 'g1', state: 'gerando', site: body.site ?? estadoDoContexto.site, created_at: '2026-11-06T10:00:00Z' }
+      return { generationId: 'g1' } as never
+    }
+    return day0 as never
+  }
+  const geracoes = () => pedidos.filter((p) => p.url.endsWith('/company-context-generation'))
+  return { responder, pedidos, geracoes }
+}
+
+const CRIADOR = { ...INICIAL, papel: 'Founder', empresa: 'Norte', sitePulado: false }
+
+describe('Day0 operacional: Contexto da empresa', () => {
+  it('confirmar o site começa a geração do contexto, sem outra confirmação, e o Day0 segue', async () => {
+    const { responder, geracoes } = backend({ ...CRIADOR, etapa: 'dominio' })
     const { usuario } = montar(responder)
-    const secao = await screen.findByRole('region', { name: 'ICP do Workspace' })
-    for (const campo of ['Setor', 'Porte', 'Região']) expect(within(secao).queryByRole('textbox', { name: campo })).not.toBeInTheDocument()
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'norte.test')
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
 
-    await usuario.type(within(secao).getByRole('textbox', { name: 'O que você vende' }), 'Roteirização')
-    await usuario.type(within(secao).getByRole('textbox', { name: 'Mini-ICP' }), 'Transportadoras médias')
-    await usuario.type(within(secao).getByRole('textbox', { name: 'Por que compram' }), 'Cortam frete')
-    await usuario.click(within(secao).getByRole('button', { name: 'Salvar ICP' }))
-    expect(await screen.findByText('ICP salvo.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Como nos conheceu?' })).toBeInTheDocument()
+    await vi.waitFor(() => expect(geracoes()).toHaveLength(1))
+    expect(geracoes()[0].body).toEqual({ workspaceId: 'workspace', site: 'norte.test' })
 
-    const produto = pedidos.find((p) => p.url.endsWith('/save_my_day0') && p.body.p_action === 'produto')
-    expect(JSON.parse(produto!.body.p_value)).toEqual({ miniIcp: 'Transportadoras médias', oQueVende: 'Roteirização', porQueCompram: 'Cortam frete' })
-    expect(pedidos.some((p) => /\/(get_my_workspace_icp|save_my_workspace_icp_fields)$/.test(p.url))).toBe(false)
+    await usuario.click(screen.getByRole('radio', { name: 'LinkedIn' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    const contexto = await screen.findByRole('region', { name: 'Contexto da empresa' })
+    expect(await within(contexto).findByText(/Lendo o site norte\.test/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Concluir Day0' }))
+    expect(await screen.findByRole('heading', { name: 'Casca operacional' })).toBeInTheDocument()
+    expect(geracoes()).toHaveLength(1)
   })
 
-  it('um convidado não vê o bloco do ICP', async () => {
-    montar(async () => ({ ...INICIAL, ramo: 'convidado', etapa: 'convite' }))
+  it('o site pode ficar para depois: o Day0 conclui e aponta Configurações para informá-lo', async () => {
+    const { responder, pedidos, geracoes } = backend({ ...CRIADOR, etapa: 'dominio' })
+    const { usuario } = montar(responder)
+    await usuario.click(await screen.findByRole('button', { name: 'Informar o site depois' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'LinkedIn' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+
+    const contexto = await screen.findByRole('region', { name: 'Contexto da empresa' })
+    expect(await within(contexto).findByText(/O site ficou para depois/)).toBeInTheDocument()
+    expect(within(contexto).getByRole('link', { name: 'Informar o site em Configurações' })).toHaveAttribute('href', '/configuracoes/contexto')
+    expect(pedidos.some((p) => p.body.p_action === 'pular_site')).toBe(true)
+    expect(geracoes()).toHaveLength(0)
+    await usuario.click(screen.getByRole('button', { name: 'Concluir Day0' }))
+    expect(await screen.findByRole('heading', { name: 'Casca operacional' })).toBeInTheDocument()
+  })
+
+  it('a falha é comunicada: tentar de novo, escrever à mão ou concluir assim mesmo', async () => {
+    const falha = { id: 'g0', state: 'falha', site: 'norte.test', created_at: '2026-11-06T10:00:00Z', failure: 'site_insuficiente' }
+    const { responder, geracoes } = backend({ ...CRIADOR, etapa: 'convite', dominio: 'norte.test' }, { generation: falha })
+    const { usuario } = montar(responder)
+    const contexto = await screen.findByRole('region', { name: 'Contexto da empresa' })
+    expect(await within(contexto).findByText(/não traz informação suficiente/)).toBeInTheDocument()
+    expect(within(contexto).getByRole('link', { name: 'Escrever à mão em Configurações' })).toHaveAttribute('href', '/configuracoes/contexto')
+
+    await usuario.click(within(contexto).getByRole('button', { name: 'Tentar de novo' }))
+    expect(await within(contexto).findByText(/Lendo o site norte\.test/)).toBeInTheDocument()
+    expect(geracoes()).toHaveLength(1)
+    await usuario.click(screen.getByRole('button', { name: 'Concluir Day0' }))
+    expect(await screen.findByRole('heading', { name: 'Casca operacional' })).toBeInTheDocument()
+  })
+
+  it('se a leitura nem começa (por exemplo, sem a função publicada), o motivo aparece e dá para tentar de novo', async () => {
+    const { responder, geracoes } = backend({ ...CRIADOR, etapa: 'dominio' })
+    let recusar = true
+    const { usuario } = montar(async (url, body) => {
+      if (url.endsWith('/company-context-generation') && recusar) {
+        recusar = false
+        geracoes().push({ url, body })
+        throw new Error('offline')
+      }
+      return responder(url, body)
+    })
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'norte.test')
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'LinkedIn' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+
+    const contexto = await screen.findByRole('region', { name: 'Contexto da empresa' })
+    expect(await within(contexto).findByRole('alert')).toHaveTextContent(/.+/)
+    expect(within(contexto).getByRole('link', { name: 'Escrever à mão em Configurações' })).toBeInTheDocument()
+    await usuario.click(within(contexto).getByRole('button', { name: 'Gerar contexto' }))
+    expect(await within(contexto).findByText(/Lendo o site norte\.test/)).toBeInTheDocument()
+    expect(within(contexto).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('retomar ou recarregar o Day0 não repete a geração', async () => {
+    const { responder, geracoes } = backend({ ...CRIADOR, etapa: 'convite', dominio: 'norte.test' }, { generation: { id: 'g1', state: 'gerando', site: 'norte.test', created_at: '' } })
+    const primeira = montar(responder)
+    await within(await screen.findByRole('region', { name: 'Contexto da empresa' })).findByText(/Lendo o site/)
+    primeira.unmount()
+    montar(responder)
+    await within(await screen.findByRole('region', { name: 'Contexto da empresa' })).findByText(/Lendo o site/)
+    expect(geracoes()).toHaveLength(0)
+  })
+
+  it('num Workspace que já tem contexto vigente, confirmar o site não gera de novo', async () => {
+    const { responder, geracoes } = backend({ ...CRIADOR, etapa: 'dominio' }, { vigente: true, site: 'antigo.test' })
+    const { usuario } = montar(responder)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'norte.test')
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'LinkedIn' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(await within(await screen.findByRole('region', { name: 'Contexto da empresa' })).findByText(/Pronto/)).toBeInTheDocument()
+    expect(geracoes()).toHaveLength(0)
+  })
+
+  it('não pergunta mais o mini-ICP, e um convidado não vê o Contexto da empresa', async () => {
+    montar(backend({ ...INICIAL, ramo: 'convidado', etapa: 'convite' }).responder)
     expect(await screen.findByRole('heading', { name: 'Tudo pronto para começar' })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'ICP do Workspace' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Contexto da empresa' })).not.toBeInTheDocument()
+    for (const campo of ['Mini-ICP', 'O que você vende', 'Por que compram']) expect(screen.queryByRole('textbox', { name: campo })).not.toBeInTheDocument()
   })
 })

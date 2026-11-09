@@ -8,6 +8,7 @@ import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
+import { aguardaDecisao } from '@/fonte/regras'
 import type { Agente } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { SecaoAtividade } from '@/paginas/secoes/atividade'
@@ -93,7 +94,7 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
   const navegar = useNavigate()
   const [confirmando, setConfirmando] = useState(false)
   const aprovacoes = useDados((f) => f.aprovacoes(), [])
-  const pendentes = aprovacoes?.filter((a) => a.agenteId === agente.id && a.estado === 'pendente').length ?? 0
+  const pendentes = aprovacoes?.filter((a) => a.agenteId === agente.id && aguardaDecisao(a)).length ?? 0
   const { erro, escrever } = useEscritaDeAgente()
 
   async function excluir() {

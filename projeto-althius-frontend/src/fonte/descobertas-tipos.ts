@@ -1,3 +1,4 @@
+import type { AderenciaPelosCriterios } from './aderencia-pelos-criterios'
 import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte } from './aprendizado-da-descoberta'
 import type { FonteObservavel } from './tipos'
@@ -15,6 +16,91 @@ export interface CriteriosDaBusca {
 
 export function criteriosDaBuscaVazios(): CriteriosDaBusca {
   return { fonte: 'linkedin', setores: [], palavrasChave: [], portes: [], regioes: [], tecnologias: [], excluir: [], cnaes: [] }
+}
+
+// A busca pelo Contexto da empresa (contexto-da-empresa, ticket 04): o servidor lê o Perfil de cliente ideal vigente e
+// devolve um recorte por perfil, cada critério ligado ao trecho do texto, e o que a fonte não aplica.
+
+/** Setor, modelo de negócio, funcionários, porte cadastral e faturamento são coisas diferentes; sede e atuação também. */
+export type ConceitoDoContexto =
+  | 'setor'
+  | 'modeloDeNegocio'
+  | 'funcionarios'
+  | 'porteCadastral'
+  | 'faturamento'
+  | 'sede'
+  | 'atuacao'
+  | 'cnae'
+  | 'palavraChave'
+  | 'tecnologia'
+  | 'excluir'
+
+export const NOMES_DOS_CONCEITOS: Record<ConceitoDoContexto, string> = {
+  setor: 'Setor',
+  modeloDeNegocio: 'Modelo de negócio',
+  funcionarios: 'Funcionários',
+  porteCadastral: 'Porte cadastral',
+  faturamento: 'Faturamento',
+  sede: 'Sede',
+  atuacao: 'Atuação',
+  cnae: 'CNAE',
+  palavraChave: 'Palavra-chave',
+  tecnologia: 'Tecnologia',
+  excluir: 'Excluir',
+}
+
+export interface CriterioDoContexto {
+  conceito: ConceitoDoContexto
+  valor: string
+  /** O trecho do Perfil de cliente ideal de onde o critério saiu. */
+  trecho: string
+}
+
+export type MotivoDaPendencia = 'sem_suporte_na_fonte' | 'ambiguo' | 'faixa_aproximada' | 'local_desconhecido' | 'valor_invalido'
+
+export interface CriterioPendente extends CriterioDoContexto {
+  motivo: MotivoDaPendencia
+  explicacao: string
+}
+
+export interface PerfilDaBusca {
+  nome: string
+  criterios: CriteriosDaBusca
+  aplicados: CriterioDoContexto[]
+  pendentes: CriterioPendente[]
+}
+
+export interface PreparacaoDaBusca {
+  /** `sem_contexto`: não há Perfil de cliente ideal salvo; `falha_traducao`: a leitura do texto falhou. */
+  estado: 'pronta' | 'sem_contexto' | 'falha_traducao'
+  contextoVersao: number | null
+  fonte: 'linkedin' | 'receita'
+  perfis: PerfilDaBusca[]
+  mensagem?: string
+}
+
+/** O desfecho da busca mais recente. Sem resultados não é falha, e nenhum dos dois prova que o mercado não existe. */
+export type DesfechoDaBusca = 'em_andamento' | 'com_resultados' | 'sem_resultados' | 'falha_da_fonte'
+
+export interface UltimaBuscaDeContas {
+  desfecho: DesfechoDaBusca
+  encontradas: number
+  novas: number
+  /** A mensagem da fonte (falha ou falha parcial), já sem nome de fornecedor. */
+  mensagem?: string
+  /** A versão do Contexto da empresa da qual os filtros saíram; nula para filtros avulsos. */
+  contextoVersao: number | null
+  perfis: string[]
+}
+
+/** Uma recusa da busca com o código do servidor (por exemplo, `contexto_mudou`). */
+export class ErroDaBuscaDeContas extends Error {
+  readonly codigo?: string
+  constructor(message: string, codigo?: string) {
+    super(message)
+    this.name = 'ErroDaBuscaDeContas'
+    this.codigo = codigo
+  }
 }
 
 export type EstadoContaDescoberta = 'nova' | 'aceita' | 'descartada'
@@ -61,6 +147,8 @@ export interface ContaDescoberta {
   tags: string[]
   fitLevel: NivelDeEncaixe
   motivos: string[]
+  /** A Aderência pelos critérios que a busca avaliou; ausente quando os motivos não dizem o critério. */
+  aderencia?: AderenciaPelosCriterios
   sinais: SinalDaCandidata[]
   origem: OrigemDaDescoberta
   /** Os Sinais reais que a trouxeram, do mais recente ao mais antigo. */
@@ -94,8 +182,17 @@ export interface ResultadoDoAceite {
 
 export interface FonteDeDescobertas extends FonteObservavel {
   cotarBusca(maxResults?: number): Promise<CotacaoDaDescoberta>
-  criteriosDaBusca(): Promise<{ temIcp: boolean; icpVersion: number | null; icpResumo: string; criterios: CriteriosDaBusca }>
-  buscarContas(args: { criterios: CriteriosDaBusca; icpVersion: number | null; maxResults?: number; allowTesting?: boolean }): Promise<void>
+  /** Os filtros derivados do Contexto da empresa vigente, um recorte por perfil. É o único caminho da busca de Contas. */
+  prepararBusca(): Promise<PreparacaoDaBusca>
+  /** Roda a busca com os perfis ajustados na tela. Recusa com `contexto_mudou` se o contexto mudou desde a preparação. */
+  buscarPorPerfis(args: {
+    perfis: Pick<PerfilDaBusca, 'nome' | 'criterios' | 'aplicados' | 'pendentes'>[]
+    contextoVersao: number
+    maxResults?: number
+    allowTesting?: boolean
+  }): Promise<void>
+  /** A busca de contas mais recente e o seu desfecho; nula quando ainda não houve nenhuma. */
+  ultimaBusca?(): Promise<UltimaBuscaDeContas | null>
   listarDescobertas(estado?: EstadoContaDescoberta): Promise<ContaDescoberta[]>
   aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite>
   descartarDescoberta(id: string, motivo?: string, codigo?: CodigoDoDescarte): Promise<void>

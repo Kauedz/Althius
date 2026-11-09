@@ -25,7 +25,7 @@ const EMPRESAS_POR_PAGINA = 50
 const MAX_CONSULTA = 300
 const MAX_LOCAIS = 20
 /** Combinações de CNAE e estado numa busca da Receita: cada uma é uma execução do Actor. */
-const MAX_COMBINACOES = 6
+export const MAX_COMBINACOES = 6
 
 /**
  * O texto da busca do LinkedIn: as palavras-chave e os setores como termos alternativos (OR), entre aspas quando têm mais de
@@ -63,10 +63,10 @@ function chamadasDoLinkedin(criterios: CriteriosDeBusca, maxResults: number): Ch
   }]
 }
 
-function chamadasDaReceita(criterios: CriteriosDeBusca, maxResults: number): ChamadaDoActor[] {
+function chamadasDaReceita(criterios: CriteriosDeBusca, maxResults: number, maxCombinacoes: number): ChamadaDoActor[] {
   const ufs = [...new Set(criterios.regioes.map((r) => ufDe(r)).filter((u): u is string => !!u))]
   const combinacoes = criterios.cnaes.flatMap((cnae) => (ufs.length ? ufs : [null]).map((uf) => ({ cnae, uf })))
-    .slice(0, MAX_COMBINACOES)
+    .slice(0, maxCombinacoes)
   const porChamada = Math.max(Math.ceil(maxResults / Math.max(combinacoes.length, 1)), 1)
   return combinacoes.map(({ cnae, uf }) => ({
     input: { mode: 'discovery', cnae, ...(uf ? { uf } : {}), situacao: 'ATIVA', maxResults: porChamada },
@@ -74,11 +74,14 @@ function chamadasDaReceita(criterios: CriteriosDeBusca, maxResults: number): Cha
   }))
 }
 
-/** O Actor e as chamadas que a busca faz. Lança se os filtros não bastam (use `faltaParaBuscar` antes). */
-export function montarPlano(criterios: CriteriosDeBusca, maxResults: number): PlanoDaBusca {
+/**
+ * O Actor e as chamadas que a busca faz. Lança se os filtros não bastam (use `faltaParaBuscar` antes). `maxCombinacoes`
+ * reparte o limite de execuções da Receita quando a busca tem vários recortes.
+ */
+export function montarPlano(criterios: CriteriosDeBusca, maxResults: number, maxCombinacoes = MAX_COMBINACOES): PlanoDaBusca {
   const actorId = ACTOR_DA_FONTE[criterios.fonte]
   const chamadas = criterios.fonte === 'receita'
-    ? chamadasDaReceita(criterios, maxResults)
+    ? chamadasDaReceita(criterios, maxResults, maxCombinacoes)
     : chamadasDoLinkedin(criterios, maxResults)
   if (!chamadas.length) throw new Error('Os filtros não bastam para montar a busca.')
   return { actorId, chamadas }

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Logo, Carregando } from '@/components/marca'
-import { useFonteDeOnboarding } from '@/fonte/contexto'
+import { useFonteDeOnboarding, useFonteDoContextoDaEmpresa } from '@/fonte/contexto'
+import { gerarContextoDoOnboarding } from '@/fonte/contexto-no-onboarding'
 import { ORIGENS_HDYHAU, PAPEIS_DO_DAY0, type EstadoDeOnboarding, type OrigemHdyhau, type PapelNoDay0 } from '@/fonte/onboarding-tipos'
+import { mensagemDeErro } from '@/lib/utils'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Campo, EscolhaUnica } from './componentes'
-import { IcpDoDay0 } from './icp-do-day0'
+import { PainelDoContextoNoOnboarding, useContextoComAndamento } from './contexto-no-onboarding'
 
 export function Day0Operacional() {
   const fonte = useFonteDeOnboarding()
+  const fonteDoContexto = useFonteDoContextoDaEmpresa()
   const navegar = useNavigate()
   const [estado, setEstado] = useState<EstadoDeOnboarding>()
   const [erro, setErro] = useState('')
@@ -16,6 +19,8 @@ export function Day0Operacional() {
   const [texto, setTexto] = useState('')
   const [papel, setPapel] = useState<PapelNoDay0 | null>(null)
   const [origem, setOrigem] = useState<OrigemHdyhau | null>(null)
+  /** Por que a geração do contexto não começou ao confirmar o site; aparece no fim do Day0, sem prendê-lo. */
+  const [erroDaGeracao, setErroDaGeracao] = useState('')
 
   useEffect(() => {
     let ativo = true
@@ -25,7 +30,6 @@ export function Day0Operacional() {
     return () => { ativo = false }
   }, [fonte, tentativa])
 
-  // A leitura do site termina depois do passo do domínio; o estado novo chega por aqui.
   useEffect(() => fonte.observar(() => {
     fonte.ler().then(setEstado).catch(() => {})
   }), [fonte])
@@ -61,7 +65,13 @@ export function Day0Operacional() {
   const continuar = () => {
     if (etapa === 'papel' && papel) return salvar(() => fonte.definirPapel(papel))
     if (etapa === 'empresa') return salvar(() => fonte.definirCliente(texto))
-    if (etapa === 'dominio') return salvar(() => fonte.definirDominio(texto))
+    if (etapa === 'dominio') return salvar(async () => {
+      const salvo = await fonte.definirDominio(texto)
+      // A geração começa com o site confirmado e roda no servidor; uma falha aparece no fim do Day0, sem prendê-lo.
+      setErroDaGeracao('')
+      void gerarContextoDoOnboarding(fonteDoContexto, salvo.dominio).catch((falha) => setErroDaGeracao(mensagemDeErro(falha)))
+      return salvo
+    })
     if (etapa === 'hdyhau' && origem) return salvar(() => fonte.definirComoConheceu(origem))
     return salvar(() => fonte.concluirOnboarding())
   }
@@ -82,10 +92,11 @@ export function Day0Operacional() {
               </Campo>
             )}
             {etapa === 'empresa' && <p>Estes dados preenchem a empresa do Workspace já aberto pela equipe Althius. O nome do Workspace permanece o mesmo.</p>}
-            {etapa === 'dominio' && <p>Ao continuar, lemos a página inicial do site para sugerir o ICP no checklist. Você revisa tudo antes de salvar.</p>}
+            {etapa === 'dominio' && <p>Ao continuar, a Althius lê o site e escreve o Contexto da empresa: o que vocês vendem, os clientes ideais e as Personas. Ele fica pronto sozinho e você pode editá-lo em Configurações.</p>}
             {etapa === 'convite' && <p>Seu progresso está salvo. Você já pode abrir o Workspace.</p>}
-            {etapa === 'convite' && estado.ramo === 'criador' && <IcpDoDay0 estado={estado} fonte={fonte} aoSalvar={setEstado} />}
+            {etapa === 'convite' && estado.ramo === 'criador' && <ContextoDoDay0 erroAoComecar={erroDaGeracao} />}
             <div className="flex flex-wrap justify-end gap-3">
+              {etapa === 'dominio' && <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void salvar(() => fonte.pularSite())}>Informar o site depois</button>}
               <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void salvar(() => fonte.concluirOnboarding())}>Pular Day0</button>
               <button type="button" className={BOTAO_PRIMARIO} disabled={!preenchido} onClick={() => void continuar()}>{ocupado ? 'Salvando…' : etapa === 'convite' ? 'Concluir Day0' : 'Continuar'}</button>
             </div>
@@ -94,4 +105,9 @@ export function Day0Operacional() {
       </div>
     </main>
   )
+}
+
+function ContextoDoDay0({ erroAoComecar }: { erroAoComecar: string }) {
+  const { dados } = useContextoComAndamento()
+  return <PainelDoContextoNoOnboarding contexto={dados} erroAoComecar={erroAoComecar} />
 }

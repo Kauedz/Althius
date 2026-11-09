@@ -393,11 +393,7 @@ Deno.test('Cadência de e-mail ponta a ponta: Conversa com o Rhetor -> Aprovaç�
             text: 'Olá Kauê, faz sentido conversarmos. Podemos falar na quinta-feira às 15h?',
           },
         ],
-        playbook: [{
-          name: 'Oferta',
-          section: 'oferta',
-          content: { texto: 'Prospecção B2B com qualificação e agendamento.' },
-        }],
+        contexto: { version: 1, empresa: 'Prospecção B2B com qualificação e agendamento.', icp: '', personas: '' },
         agent: { name: 'Rhetor', instructions: 'Seja objetivo e cordial.', voice_tone: 'direto' },
       }),
     chaveDoCliente: () => Promise.resolve(null),

@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LogoDoWorkspace } from '@/components/logos'
 import { Carregando } from '@/components/marca'
-import { useAmbiente, useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDeOnboarding, useFonteDoContextoDaEmpresa } from '@/fonte/contexto'
+import { gerarContextoDoOnboarding } from '@/fonte/contexto-no-onboarding'
 import { normalizarDominio } from '@/fonte/dominio-do-site'
 import {
   ORIGENS_HDYHAU,
@@ -134,12 +135,21 @@ function EtapaDominio({ estado, fonte, rascunho, rascunhar }: PropsDoPasso) {
   const host = normalizarDominio(dominio)
   const logo = usePreviaDoLogo(fonte, host, host === estado.dominio ? estado.logoDoSite : null)
   const nome = estado.workspace?.nomeSugerido || estado.empresa
+  const fonteDoContexto = useFonteDoContextoDaEmpresa()
+
+  async function confirmar(site: string) {
+    const salvo = await fonte.definirDominio(site)
+    // Sem outra confirmação: a geração começa com o site confirmado e o wizard segue enquanto ela acontece.
+    await gerarContextoDoOnboarding(fonteDoContexto, salvo.dominio).catch(() => false)
+  }
+
   return (
     <Moldura
       estado={estado}
       fonte={fonte}
       titulo="Qual é o site da empresa?"
-      continuar={{ disabled: !host, aoContinuar: () => host && void fonte.definirDominio(host) }}
+      continuar={{ disabled: !host, aoContinuar: () => host && void confirmar(host) }}
+      pular={{ rotulo: 'Informar o site depois', aoPular: () => void fonte.pularSite() }}
     >
       <Campo rotulo="Domínio do site">
         <input
@@ -156,8 +166,8 @@ function EtapaDominio({ estado, fonte, rascunho, rascunhar }: PropsDoPasso) {
         <p>O logo do Workspace vem do site. Sem logo, fica a inicial de {nome}.</p>
       </div>
       <p>
-        Ao continuar, a Althius lê o site para sugerir o que você vende, o ICP provável e as Personas possíveis. É só
-        uma base: você revisa tudo no checklist, e pode seguir enquanto a leitura acontece.
+        Ao continuar, a Althius lê o site e escreve o Contexto da empresa: o que vocês vendem, os clientes ideais e as
+        Personas. Ele fica pronto sozinho, você pode seguir enquanto a leitura acontece e editá-lo em Configurações.
       </p>
     </Moldura>
   )

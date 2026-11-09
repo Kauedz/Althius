@@ -26,15 +26,18 @@ async function ativarNotificacoes(usuario: Usuario) {
   expect(await (await blocoDeNotificacoes()).findByText('Ativadas')).toBeInTheDocument()
 }
 
-/** Da seção atual de Configurações, pede ao Scopus a revisão do ICP pela Conversa da Memória do Workspace. */
-async function pedirRevisaoAoScopus(usuario: Usuario) {
-  await usuario.click(await screen.findByRole('link', { name: 'Memória do Workspace' }))
-  await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Scopus' }))
-  const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão do ICP' }))
-  await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), 'Estamos fechando na Colômbia.')
-  await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Scopus' }))
-  expect(await dialogo.findByText(/aguardando a decisão de um Administrador/)).toBeInTheDocument()
-  await usuario.keyboard('{Escape}')
+/**
+ * Pede ao Scopus a revisão do ICP da Memória simulada da Demonstração, pela fonte. A tela da Memória do Workspace saiu
+ * com a retirada do Playbook (contexto-da-empresa 07); a revisão continua sendo o veículo destes avisos.
+ */
+async function pedirRevisaoAoScopus(fonte: FonteDeAgentes) {
+  const aprovacao = await act(() => fonte.solicitarRevisao('icp', 'Estamos fechando na Colômbia.'))
+  expect(aprovacao.estado).toBe('pendente')
+}
+
+/** O ICP da Memória simulada, depois da decisão. */
+async function icpDaMemoria(fonte: FonteDeAgentes) {
+  return (await fonte.memoriaDoWorkspace()).icp.secoes.map((secao) => secao.texto).join(' ')
 }
 
 /** Abre Aprovações pela navegação e decide a revisão pendente do ICP. */
@@ -141,7 +144,7 @@ describe('Preferência de notificações do navegador', () => {
 
   it('a preferência gravada não passa por cima do navegador: bloqueadas no site, nada é mostrado; liberadas, voltam sem perguntar de novo', async () => {
     const navegador = navegadorComNotificacoes({ permissao: 'granted' })
-    const { usuario } = abrir('/configuracoes/preferencias')
+    const { usuario, fonte } = abrir('/configuracoes/preferencias')
     await ativarNotificacoes(usuario)
 
     navegador.mudarPermissao('denied')
@@ -149,10 +152,12 @@ describe('Preferência de notificações do navegador', () => {
     const bloco = await blocoDeNotificacoes()
     expect(await bloco.findByText('Bloqueadas pelo navegador')).toBeInTheDocument()
     expect(await interruptor()).not.toBeChecked()
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
     expect(navegador.mostradas).toEqual([])
 
     navegador.mudarPermissao('granted')
+    // Sair e voltar a Preferências relê a permissão do navegador.
+    await usuario.click(await screen.findByRole('link', { name: 'Meu perfil' }))
     await usuario.click(await screen.findByRole('link', { name: 'Preferências' }))
     expect(await (await blocoDeNotificacoes()).findByText('Ativadas')).toBeInTheDocument()
     expect(navegador.pedidos).not.toHaveBeenCalled()
@@ -175,11 +180,11 @@ describe('Preferência de notificações do navegador', () => {
 describe('Avisos pelo navegador', () => {
   it('o Administrador é avisado da revisão do ICP aguardando decisão, e clicar no aviso abre Aprovações', async () => {
     const navegador = navegadorComNotificacoes({ permissao: 'granted' })
-    const { usuario } = abrir('/configuracoes/preferencias')
+    const { usuario, fonte } = abrir('/configuracoes/preferencias')
     await ativarNotificacoes(usuario)
     expect(navegador.pedidos).not.toHaveBeenCalled()
 
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
     expect(navegador.mostradas).toEqual([
       expect.objectContaining({
         titulo: 'Revisão do ICP aguardando Aprovação',
@@ -193,9 +198,9 @@ describe('Avisos pelo navegador', () => {
 
   it('quem pediu a revisão é avisado do resultado, também o Administrador que aprova o próprio pedido', async () => {
     const navegador = navegadorComNotificacoes({ permissao: 'granted' })
-    const { usuario } = abrir('/configuracoes/preferencias')
+    const { usuario, fonte } = abrir('/configuracoes/preferencias')
     await ativarNotificacoes(usuario)
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
 
     const cartao = await decidirRevisaoDoIcp(usuario, 'Aprovar')
     expect(await cartao.findByText(/Aprovada por Marina Alves/)).toBeInTheDocument()
@@ -203,9 +208,11 @@ describe('Avisos pelo navegador', () => {
       titulo: 'Sua revisão do ICP foi aprovada',
       texto: 'Aprovada por Marina Alves. O ICP vigente foi substituído e as configurações que dependem dele já usam o novo.',
     })
+    expect(await icpDaMemoria(fonte)).toContain('Colômbia')
 
+    // O aviso leva ao Contexto da empresa: a tela da Memória do Workspace saiu.
     act(() => navegador.mostradas.at(-1)!.clicar())
-    expect(await screen.findByRole('region', { name: 'ICP vigente' })).toHaveTextContent('Colômbia')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Contexto da empresa' })).toBeInTheDocument()
   })
 
   it('pelo papel: o Membro que pede não recebe o aviso para decidir, e o Administrador que decide o pedido de outra pessoa não recebe o resultado', async () => {
@@ -213,7 +220,7 @@ describe('Avisos pelo navegador', () => {
     const armazenamento = armazenamentoEmMemoria()
     const membro = abrir('/configuracoes/preferencias', { armazenamento, sessao: { contaId: 'lucas' } })
     await ativarNotificacoes(membro.usuario)
-    await pedirRevisaoAoScopus(membro.usuario)
+    await pedirRevisaoAoScopus(membro.fonte)
     expect(navegador.mostradas).toEqual([])
     membro.unmount()
 
@@ -229,7 +236,7 @@ describe('Avisos pelo navegador', () => {
   it('desativar interrompe os avisos e grava a preferência, sem alegar revogar a permissão do navegador', async () => {
     const navegador = navegadorComNotificacoes({ permissao: 'granted' })
     const armazenamento = armazenamentoEmMemoria()
-    const { usuario, unmount } = abrir('/configuracoes/preferencias', { armazenamento })
+    const { usuario, unmount, fonte } = abrir('/configuracoes/preferencias', { armazenamento })
     await ativarNotificacoes(usuario)
 
     await usuario.click(await interruptor())
@@ -240,7 +247,7 @@ describe('Avisos pelo navegador', () => {
     ).toBeInTheDocument()
     expect(bloco.queryByText(/revog/i)).not.toBeInTheDocument()
 
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
     expect(navegador.mostradas).toEqual([])
     unmount()
 
@@ -252,9 +259,9 @@ describe('Avisos pelo navegador', () => {
   it('uma falha de execução avisa quem pediu a ação, e o aviso leva ao que continua valendo', async () => {
     const navegador = navegadorComNotificacoes({ permissao: 'granted' })
     const { armazenamento, falharAGravacao } = armazenamentoQueFalha()
-    const { usuario } = abrir('/configuracoes/preferencias', { armazenamento })
+    const { usuario, fonte } = abrir('/configuracoes/preferencias', { armazenamento })
     await ativarNotificacoes(usuario)
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
 
     falharAGravacao(true)
     const cartao = await decidirRevisaoDoIcp(usuario, 'Aprovar')
@@ -265,8 +272,9 @@ describe('Avisos pelo navegador', () => {
         'Falhou ao decidir na fila: Revisar o ICP do Workspace. Nada foi alterado: o ICP vigente e as configurações que dependem dele continuam como estavam.',
     })
 
+    expect(await icpDaMemoria(fonte)).not.toContain('Colômbia')
     act(() => navegador.mostradas.at(-1)!.clicar())
-    expect(await screen.findByRole('region', { name: 'ICP vigente' })).not.toHaveTextContent('Colômbia')
+    expect(await screen.findByRole('heading', { level: 2, name: 'Contexto da empresa' })).toBeInTheDocument()
   })
 
   it('os avisos não criam Aprovações nem mudam o resultado, mesmo quando o navegador se recusa a mostrá-los', async () => {
@@ -276,14 +284,12 @@ describe('Avisos pelo navegador', () => {
     const antes = await fonte.aprovacoes()
     navegador.falharAoMostrar(true)
 
-    await pedirRevisaoAoScopus(usuario)
+    await pedirRevisaoAoScopus(fonte)
     const cartao = await decidirRevisaoDoIcp(usuario, 'Aprovar')
     expect(await cartao.findByText(/Aprovada por Marina Alves/)).toBeInTheDocument()
     expect(navegador.mostradas).toEqual([])
     expect(await fonte.aprovacoes()).toHaveLength(antes.length + 1)
-    await usuario.click(within(screen.getByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Configurações/ }))
-    await usuario.click(await screen.findByRole('link', { name: 'Memória do Workspace' }))
-    expect(await screen.findByRole('region', { name: 'ICP vigente' })).toHaveTextContent('Colômbia')
+    expect(await icpDaMemoria(fonte)).toContain('Colômbia')
   })
 })
 
@@ -319,7 +325,7 @@ describe('Destinatários dos avisos, pelo contrato da fonte', () => {
         destinatarios: ['lucas'],
         titulo: 'Sua revisão das Personas foi recusada',
         texto: 'Recusada por Rafael Couto. As Personas vigentes não mudaram.',
-        para: '/configuracoes/memoria/personas',
+        para: '/configuracoes/contexto',
       }),
     ])
   })

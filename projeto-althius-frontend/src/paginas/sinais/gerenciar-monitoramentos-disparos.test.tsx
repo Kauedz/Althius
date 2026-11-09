@@ -81,7 +81,9 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
     // O aside com o público recomendado simulado é ofertado
     const aside = screen.getByRole('complementary', { name: 'Público recomendado' })
     expect(aside).toHaveTextContent('ICP do Workspace')
-    expect(aside).toHaveTextContent('Vem do ICP vigente na Memória do Workspace')
+    expect(aside).toHaveTextContent('Vem do Perfil de cliente ideal do Contexto da empresa')
+    expect(aside).toHaveTextContent('ICP primário: incorporadoras residenciais')
+    expect(aside).not.toHaveTextContent('Memória')
 
     // Modo 1: Acompanhar listas
     await usuario.click(screen.getByRole('radio', { name: 'Acompanhar listas' }))

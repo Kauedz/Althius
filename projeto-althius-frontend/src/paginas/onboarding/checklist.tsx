@@ -1,18 +1,15 @@
-// O checklist do Norte: os três itens, o progresso do onboarding e os próximos passos depois deles.
+// O checklist do Norte: o Contexto da empresa e o Sinal, o progresso do onboarding e os próximos passos depois deles.
 import { Check, Circle } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogoDoWorkspace } from '@/components/logos'
-import type {
-  EstadoDeOnboarding,
-  ItemDoChecklist,
-  MarcoDoOnboarding,
-  MiniIcpEProduto,
-  SituacaoDoItem,
-} from '@/fonte/onboarding-tipos'
+import type { ContextoDaEmpresa } from '@/fonte/contexto-da-empresa-tipos'
+import { ENDERECO_DO_CONTEXTO } from '@/fonte/contexto-no-onboarding'
+import type { EstadoDeOnboarding, ItemDoChecklist, MarcoDoOnboarding, SituacaoDoItem } from '@/fonte/onboarding-tipos'
 import { criaOWorkspace, progressoDoOnboarding } from '@/fonte/regras-onboarding'
 import { cn } from '@/lib/utils'
-import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Campo, type PropsDaEtapa } from './componentes'
+import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, type PropsDaEtapa } from './componentes'
+import { PainelDoContextoNoOnboarding, useContextoComAndamento } from './contexto-no-onboarding'
 import { Moldura } from './moldura'
 
 const ROTULO_DA_SITUACAO: Record<SituacaoDoItem, string> = {
@@ -22,48 +19,34 @@ const ROTULO_DA_SITUACAO: Record<SituacaoDoItem, string> = {
 }
 
 const NOME_DO_ITEM: Record<ItemDoChecklist, string> = {
-  produto: '1. Mini-ICP e produto',
-  persona: '2. Persona',
-  sinal: '3. Sinal',
+  contexto: '1. Contexto da empresa',
+  sinal: '2. Sinal',
 }
 
 const ROTULO_DO_PULO: Record<ItemDoChecklist, string> = {
-  produto: 'Pular mini-ICP',
-  persona: 'Pular Persona',
+  contexto: 'Pular contexto',
   sinal: 'Pular Sinal',
 }
 
 const ROTULO_DO_MARCO: Record<MarcoDoOnboarding, string> = {
   workspace: 'Workspace',
   site: 'Site e logo',
-  produto: 'Mini-ICP e produto',
-  persona: 'Persona',
+  contexto: 'Contexto da empresa',
   sinal: 'Sinal',
 }
 
 /** Por que o próximo marco importa, na chamada do progresso do onboarding. */
 const CHAMADA_DO_MARCO: Record<MarcoDoOnboarding, string> = {
   workspace: 'É onde os Agentes trabalham.',
-  site: 'Dá o logo do Workspace e a leitura inicial do site.',
-  produto: 'Diz para quem você vende e por que compram.',
-  persona: 'Diz com quem falar em cada Conta-alvo.',
+  site: 'Dá o logo do Workspace e a leitura que escreve o Contexto da empresa.',
+  contexto: 'Diz o que você vende, para quem e quem compra.',
   sinal: 'Mostra a hora de abordar uma Conta-alvo.',
 }
 
-/** Os campos do item 1, na ordem da tela. */
-const CAMPOS_NA_TELA: readonly { campo: keyof MiniIcpEProduto; rotulo: string }[] = [
-  { campo: 'oQueVende', rotulo: 'O que você vende' },
-  { campo: 'miniIcp', rotulo: 'Mini-ICP' },
-  { campo: 'porQueCompram', rotulo: 'Por que compram' },
-]
-
-const SEM_MINI_ICP_E_PRODUTO: MiniIcpEProduto = { miniIcp: '', oQueVende: '', porQueCompram: '' }
-
-const AVISO_DA_PERSONA =
-  'É uma base do onboarding para começar: não muda as definições de Personas da Memória do Workspace, que só mudam por uma revisão do Ethos aprovada por um Administrador. Não é a classificação de um Contato e não é a Memória do Agente.'
-
 export function EtapaChecklist({ estado, fonte }: PropsDaEtapa) {
   const navegar = useNavigate()
+  const { dados: contexto } = useContextoComAndamento()
+  const contextoVigente = !!contexto?.vigente
 
   async function concluir() {
     await fonte.concluirOnboarding()
@@ -85,12 +68,10 @@ export function EtapaChecklist({ estado, fonte }: PropsDaEtapa) {
       ) : (
         <p>Você entra no Workspace para o qual foi convidado. A empresa do Cliente fica como está.</p>
       )}
-      {criaOWorkspace(estado.ramo) && <LeituraDoSiteNoChecklist estado={estado} fonte={fonte} />}
-      <p>A ordem do Norte: mini-ICP e produto, depois Persona, depois Sinal.</p>
-      <PainelDoProgresso estado={estado} />
+      <p>A ordem do Norte: Contexto da empresa, depois Sinal.</p>
+      <PainelDoProgresso estado={estado} contextoVigente={contextoVigente} />
       <ol aria-label="Checklist do Norte" className="flex flex-col gap-4">
-        <ItemProduto estado={estado} fonte={fonte} />
-        <ItemPersona estado={estado} fonte={fonte} />
+        <ItemContexto estado={estado} fonte={fonte} contexto={contexto} />
         <ItemSinal estado={estado} fonte={fonte} />
       </ol>
       <ProximosPassos />
@@ -98,126 +79,25 @@ export function EtapaChecklist({ estado, fonte }: PropsDaEtapa) {
   )
 }
 
-function LeituraDoSiteNoChecklist({ estado, fonte }: PropsDaEtapa) {
-  const { situacao } = estado.leitura
-  if (situacao === 'inativa') return null
-  return (
-    <section aria-label="Leitura do site" className="rounded-xl flex flex-col gap-2 border border-al-line p-4">
-      <p className="rotulo">Leitura do site</p>
-      <p aria-live="polite">
-        {situacao === 'lendo' && `Lendo o site ${estado.dominio}. Você pode editar os campos enquanto isso.`}
-        {situacao === 'pronta' &&
-          `Base sugerida pela leitura de ${estado.dominio}. Revise, edite ou descarte: o que você escrever prevalece.`}
-        {situacao === 'falhou' && `Não foi possível ler o site ${estado.dominio}. Preencha os campos ou tente de novo.`}
-      </p>
-      {situacao === 'falhou' && (
-        <button
-          type="button"
-          className={cn(BOTAO_SECUNDARIO, 'self-start')}
-          onClick={() => void fonte.lerSite(estado.dominio)}
-        >
-          Tentar de novo
-        </button>
-      )}
-    </section>
-  )
-}
-
 /**
- * Os campos ficam na tela e vão para a Fonte a cada edição, para a leitura do site nunca sobrescrever o que a
- * pessoa escreveu. Quando a leitura muda de situação, a tela adota o que a Fonte tem.
+ * O Contexto da empresa conta como concluído pela versão vigente dele. Quem criou o Workspace acompanha a leitura do
+ * site; quem foi convidado só vê se ele já vale e onde consultá-lo.
  */
-function useCamposDoChecklist<T>(estado: EstadoDeOnboarding, daFonte: T) {
-  const [campos, setCampos] = useState(daFonte)
-  const [leituraVista, setLeituraVista] = useState(estado.leitura.situacao)
-  if (leituraVista !== estado.leitura.situacao) {
-    setLeituraVista(estado.leitura.situacao)
-    setCampos(daFonte)
-  }
-  return [campos, setCampos] as const
-}
-
-function ItemProduto({ estado, fonte }: PropsDaEtapa) {
-  const { miniIcp, oQueVende, porQueCompram } = estado.checklist
-  const [campos, setCampos] = useCamposDoChecklist<MiniIcpEProduto>(estado, { miniIcp, oQueVende, porQueCompram })
-  const vazio = CAMPOS_NA_TELA.some(({ campo }) => !campos[campo].trim())
-
-  function editar(mudanca: Partial<MiniIcpEProduto>) {
-    const novos = { ...campos, ...mudanca }
-    setCampos(novos)
-    void fonte.salvarProduto(novos)
-  }
-
-  async function concluir() {
-    await fonte.salvarProduto(campos)
-    await fonte.concluirProduto()
-  }
-
+function ItemContexto({ estado, fonte, contexto }: PropsDaEtapa & { contexto: ContextoDaEmpresa | undefined }) {
   return (
-    <Item
-      item="produto"
-      estado={estado}
-      fonte={fonte}
-      acoes={
-        <>
-          <button type="button" className={BOTAO_PRIMARIO} disabled={vazio} onClick={() => void concluir()}>
-            Concluir mini-ICP
-          </button>
-          <DescartarSugestao estado={estado} aoDescartar={() => editar(SEM_MINI_ICP_E_PRODUTO)} />
-        </>
-      }
-    >
-      {CAMPOS_NA_TELA.map(({ campo, rotulo }) => (
-        <Campo key={campo} rotulo={rotulo}>
-          <textarea
-            className="campo min-h-20"
-            aria-label={rotulo}
-            value={campos[campo]}
-            onChange={(evento) => editar({ [campo]: evento.target.value })}
-          />
-        </Campo>
-      ))}
-    </Item>
-  )
-}
-
-function ItemPersona({ estado, fonte }: PropsDaEtapa) {
-  // Na tela, as Personas são um texto com uma por linha; na Fonte, uma lista.
-  const [texto, setTexto] = useCamposDoChecklist(estado, estado.checklist.personas.join('\n'))
-
-  function editar(novo: string) {
-    setTexto(novo)
-    void fonte.salvarPersonas(novo.split('\n'))
-  }
-
-  async function concluir() {
-    await fonte.salvarPersonas(texto.split('\n'))
-    await fonte.concluirPersona()
-  }
-
-  return (
-    <Item
-      item="persona"
-      estado={estado}
-      fonte={fonte}
-      acoes={
-        <>
-          <button type="button" className={BOTAO_PRIMARIO} disabled={!texto.trim()} onClick={() => void concluir()}>
-            Concluir Persona
-          </button>
-          <DescartarSugestao estado={estado} aoDescartar={() => editar('')} />
-        </>
-      }
-    >
-      <p>As Personas possíveis do Workspace, considerando para quem você vende. Uma por linha. {AVISO_DA_PERSONA}</p>
-      <Campo rotulo="Personas possíveis">
-        <textarea
-          className="campo min-h-24"
-          aria-label="Personas possíveis"
-          value={texto}
-          onChange={(evento) => editar(evento.target.value)}
-        />
-      </Campo>
+    <Item item="contexto" estado={estado} fonte={fonte} concluido={!!contexto?.vigente} acoes={null}>
+      {criaOWorkspace(estado.ramo) ? (
+        <PainelDoContextoNoOnboarding contexto={contexto} />
+      ) : (
+        <p>
+          {contexto?.vigente
+            ? 'O Contexto da empresa já vale: consulte em Configurações o que a empresa vende, os clientes ideais e as Personas.'
+            : 'Um Administrador do Workspace ainda vai gerar o Contexto da empresa em Configurações.'}{' '}
+          <Link className="font-medium underline underline-offset-4" to={ENDERECO_DO_CONTEXTO}>
+            Abrir em Configurações
+          </Link>
+        </p>
+      )}
     </Item>
   )
 }
@@ -250,22 +130,12 @@ function ItemSinal({ estado, fonte }: PropsDaEtapa) {
   )
 }
 
-/** Depois de uma leitura do site, a sugestão de um item pode ser descartada. */
-function DescartarSugestao({ estado, aoDescartar }: { estado: EstadoDeOnboarding; aoDescartar: () => void }) {
-  if (!estado.leitura.resultado) return null
-  return (
-    <button type="button" className={BOTAO_SECUNDARIO} onClick={aoDescartar}>
-      Descartar sugestão
-    </button>
-  )
-}
-
 /**
  * Quanto do onboarding já está completo, com um segmento por marco na ordem do Norte e a chamada para o próximo que
  * falta. Um item pulado não conta. A 100%, comemora.
  */
-function PainelDoProgresso({ estado }: { estado: EstadoDeOnboarding }) {
-  const { marcos, percentual, proximo } = progressoDoOnboarding(estado)
+function PainelDoProgresso({ estado, contextoVigente }: { estado: EstadoDeOnboarding; contextoVigente: boolean }) {
+  const { marcos, percentual, proximo } = progressoDoOnboarding(estado, contextoVigente)
   const completo = proximo === null
   return (
     <section
@@ -314,7 +184,7 @@ function PainelDoProgresso({ estado }: { estado: EstadoDeOnboarding }) {
             <span className="grid size-6 shrink-0 place-items-center rounded-md bg-al-ink text-al-bg">
               <Check strokeWidth={2.5} className="size-4" aria-hidden />
             </span>
-            Onboarding 100% completo: mini-ICP, Persona e Sinal concluídos.
+            Onboarding 100% completo: Contexto da empresa e Sinal concluídos.
           </span>
         ) : (
           `Próximo: ${ROTULO_DO_MARCO[proximo]}. ${CHAMADA_DO_MARCO[proximo]}`
@@ -350,15 +220,19 @@ function ProximosPassos() {
   )
 }
 
-/** Um item do checklist, com a situação dele, as ações próprias e o pulo enquanto ele não está concluído. */
+/**
+ * Um item do checklist, com a situação dele, as ações próprias e o pulo enquanto ele não está concluído. `concluido`
+ * vale para o item que conta por fora da Fonte de onboarding, como o Contexto da empresa.
+ */
 function Item({
   item,
   estado,
   fonte,
+  concluido: concluidoFora = false,
   acoes,
   children,
-}: PropsDaEtapa & { item: ItemDoChecklist; acoes: ReactNode; children: ReactNode }) {
-  const situacao = estado.checklist[item]
+}: PropsDaEtapa & { item: ItemDoChecklist; concluido?: boolean; acoes: ReactNode; children: ReactNode }) {
+  const situacao = concluidoFora ? 'concluido' : estado.checklist[item]
   const concluido = situacao === 'concluido'
   const nome = NOME_DO_ITEM[item]
   return (

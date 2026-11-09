@@ -9,7 +9,7 @@
 // crédito. Nada de texto cru do modelo, erro de fornecedor ou custo sai daqui.
 import { comCors } from '../_shared/cors.ts'
 import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
-import { type Descoberta, explicacaoPorIa, explicacaoPorRegra } from './explicacao.ts'
+import { avaliarAderencia, type Descoberta, explicacaoPorIa, explicacaoPorRegra } from './explicacao.ts'
 
 export type Origem = 'ia' | 'regra'
 
@@ -89,7 +89,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     if (!descoberta) return json({ error: MENSAGENS.naoEncontrada }, 404)
 
-    const nota = { nivel: descoberta.fitLevel, pontuacao: descoberta.fitScore }
+    // A situação e os grupos de critérios saem sempre dos motivos guardados, também com a explicação já guardada.
+    const nota = { nivel: descoberta.fitLevel, pontuacao: descoberta.fitScore, ...avaliarAderencia(descoberta) }
     if (descoberta.explanation && descoberta.explanationSource) {
       log({ type: 'account_fit_explanation', outcome: 'guardada' })
       return json({ explicacao: descoberta.explanation, origem: descoberta.explanationSource, ...nota })

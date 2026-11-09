@@ -164,10 +164,11 @@ describe('Workspace operacional e Demonstração', () => {
 
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
-  it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas'])(
-    '%s mostra a seção do Playbook sem versão aprovada (CRM-09), sem documento da Demonstração nem edição direta',
+  it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas', '/configuracoes/playbook/icp'])(
+    '%s leva ao Contexto da empresa e não lê o Playbook (contexto-da-empresa 07)',
     async (rota) => {
       window.history.replaceState(null, '', rota)
+      const leiturasDoPlaybook: unknown[] = []
       abrirAlthius({
         ultimoAmbiente: 'real',
         sessao: sessaoDe(MARINA),
@@ -175,18 +176,17 @@ describe('Workspace operacional e Demonstração', () => {
         rpcs: {
           list_approvals: () => [],
           list_workspace_participants: () => [],
-          get_playbook_section: (p: Record<string, unknown>) => ({
-            section: p.p_section, name: String(p.p_section), version: null, content: null,
-            updated_by: null, updated_at: null, history: [],
-          }),
+          get_playbook_section: (p: Record<string, unknown>) => {
+            leiturasDoPlaybook.push(p)
+            return null
+          },
         },
       })
 
-      expect(await screen.findByText(/^Ainda não há (ICP|Personas)\. Importe o Playbook ou peça ao/)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Abrir o Playbook' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 2, name: 'Contexto da empresa' })).toBeInTheDocument()
+      expect(screen.queryByText(/Playbook/)).not.toBeInTheDocument()
       expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Pedir revisão|Editar/ })).not.toBeInTheDocument()
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(leiturasDoPlaybook).toEqual([])
     },
   )
 

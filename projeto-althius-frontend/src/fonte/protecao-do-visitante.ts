@@ -29,7 +29,7 @@ export const ACOES_PAGAS_DO_VISITANTE: Record<Fontes, readonly string[]> = {
   // Monitoramento.
   fonteDeSinais: ['salvarMonitoramento', 'mudarEstado', 'simularDisparo', 'pedirSinal', 'montarPlano', 'salvarPlano', 'rodarAgora', 'salvarAgenda', 'liberarAutomacao'],
   // Descoberta.
-  fonteDeDescobertas: ['buscarContas', 'aceitarDescoberta'],
+  fonteDeDescobertas: ['buscarPorPerfis', 'aceitarDescoberta'],
 }
 
 const CONVERSAS = new Set(['conversar', 'conversarCoordenado'])

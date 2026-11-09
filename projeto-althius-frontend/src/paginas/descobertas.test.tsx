@@ -1,4 +1,3 @@
-import { criteriosDaBuscaVazios } from '@/fonte/descobertas-tipos'
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
@@ -123,18 +122,21 @@ describe('Caixa de Descobertas por ICP', () => {
     const { usuario } = renderizarApp('/contas/descobertas')
 
     expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
-    expect(screen.queryByText('AgroTech Soluções de Precisão')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vértice Incorporadora')).not.toBeInTheDocument()
 
     const botaoBuscar = screen.getByRole('button', { name: /Buscar contas pelo ICP/i })
     await usuario.click(botaoBuscar)
 
+    // Na Demonstração, os filtros também saem do Contexto da empresa: um recorte por perfil, com a origem no texto.
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística e tecnologia')
+    const primario = within(painel).getByRole('group', { name: /ICP primário/ })
+    expect(within(primario).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Imobiliário')
+    expect(within(painel).getByRole('group', { name: /ICP secundário/ })).toBeInTheDocument()
+    expect(within(painel).queryByText(/Playbook/)).not.toBeInTheDocument()
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
 
     // Nova candidata aparece
-    expect(await screen.findByText('AgroTech Soluções de Precisão')).toBeInTheDocument()
-    expect(screen.getAllByText('Encaixe alto').length).toBeGreaterThanOrEqual(1)
+    expect(await screen.findByText('Vértice Incorporadora')).toBeInTheDocument()
   })
 
   it('aceitar com CNPJ informa Conta, Comitê e Receita quando os dois enriquecimentos concluem', async () => {
@@ -188,104 +190,29 @@ describe('Caixa de Descobertas por ICP', () => {
     expect(receita).not.toHaveBeenCalled()
   })
 
-  it('os filtros da busca aceitam vírgula ao digitar e exigem setor ou palavra-chave', async () => {
-    const { usuario } = renderizarApp('/contas/descobertas')
-    expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
-    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-    const setores = within(painel).getByLabelText('Setores')
-    const palavras = within(painel).getByLabelText('Palavras-chave')
-    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
-    await usuario.clear(palavras)
-    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
-    expect(within(painel).getByText(/Informe ao menos um setor ou uma palavra-chave/)).toBeInTheDocument()
-    await usuario.type(setores, 'Seguros')
-    await usuario.keyboard('{Enter}')
-    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Seguros')
-    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled()
-    await usuario.click(within(painel).getByRole('button', { name: 'Cancelar' }))
-    expect(screen.queryByRole('dialog', { name: 'Confirmar filtros da busca' })).not.toBeInTheDocument()
-  })
-
-  it('administrador em testing confirma com allowTesting, filtros editados e versão do ICP', async () => {
+  it('administrador em testing confirma com allowTesting, filtros editados e versão do Contexto da empresa', async () => {
     const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
       opcoesOnboarding: {},
       descobertas: (fonte) => {
         vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: true })
-        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        vi.spyOn(fonte, 'buscarPorPerfis').mockResolvedValue()
         return fonte
       },
     })
     expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
-    await usuario.type(within(painel).getByLabelText('Setores'), 'SaaS')
-    await usuario.keyboard('{Enter}')
+    const primario = within(painel).getByRole('group', { name: /ICP primário/ })
+    await usuario.type(within(primario).getByLabelText('Palavras-chave'), 'lançamentos{Enter}')
     await waitFor(() => expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled())
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
-    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
-      criterios: expect.objectContaining({ setores: ['SaaS'] }),
-      icpVersion: 1,
+    expect(fonteDeDescobertas.buscarPorPerfis).toHaveBeenCalledWith(expect.objectContaining({
+      contextoVersao: 1,
       allowTesting: true,
-    })
-  })
-
-  it('os filtros são escolhidos em listas: porte, região e setor vão no formato que a busca entende', async () => {
-    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
-      opcoesOnboarding: {},
-      descobertas: (fonte) => {
-        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
-        vi.spyOn(fonte, 'criteriosDaBusca').mockResolvedValue({
-          criterios: { ...criteriosDaBuscaVazios(), setores: ['Logística'], portes: ['51-200'], regioes: ['SP'] },
-          icpVersion: 3,
-          icpResumo: 'Logística no Sudeste',
-          temIcp: true,
-        })
-        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
-        return fonte
-      },
-    })
-    await screen.findByText('LogiFlow Brasil S.A.')
-    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
-    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-
-    // Pré-preenchido pelo ICP.
-    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística')
-    // O porte aparece só pelo rótulo legível, sem o código interno.
-    const portesEscolhidos = within(painel).getByRole('list', { name: 'Porte (faixas) escolhidas' })
-    expect(portesEscolhidos).toHaveTextContent('51 a 200 funcionários')
-    expect(portesEscolhidos).not.toHaveTextContent('51-200')
-
-    // Setor pela busca na lista; porte pela faixa legível; região por cidade.
-    await usuario.type(within(painel).getByRole('combobox', { name: 'Setores' }), 'Segur')
-    await usuario.click(within(painel).getByRole('option', { name: /Seguros/ }))
-    await usuario.type(within(painel).getByRole('combobox', { name: 'Porte (faixas)' }), '11 a 50')
-    const opcaoDePorte = within(painel).getByRole('option', { name: '11 a 50 funcionários' })
-    expect(opcaoDePorte).toHaveTextContent(/^11 a 50 funcionários$/)
-    await usuario.click(opcaoDePorte)
-    expect(within(painel).queryByRole('option', { name: /MEI/ })).not.toBeInTheDocument()
-    const regiao = await within(painel).findByRole('combobox', { name: 'Região' }, { timeout: 5000 })
-    await usuario.type(regiao, 'Campinas')
-    await usuario.click(await within(painel).findByRole('option', { name: /^Campinas, SP/ }))
-
-    // Palavras-chave e exclusões continuam livres, em etiquetas.
-    await usuario.type(within(painel).getByLabelText('Palavras-chave'), 'frota{Enter}')
-    await usuario.type(within(painel).getByLabelText('Excluir'), 'consultoria,')
-    await usuario.click(within(painel).getByRole('button', { name: 'Remover 51 a 200 funcionários' }))
-
-    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
-    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
-      criterios: expect.objectContaining({
-        setores: ['Logística', 'Seguros'],
-        portes: ['11-50'],
-        regioes: ['SP', 'Campinas, SP'],
-        palavrasChave: ['frota'],
-        excluir: ['consultoria'],
-      }),
-      icpVersion: 3,
-      allowTesting: false,
-    })
+      perfis: expect.arrayContaining([
+        expect.objectContaining({ criterios: expect.objectContaining({ palavrasChave: expect.arrayContaining(['lançamentos']) }) }),
+      ]),
+    }))
   })
 
   it('ator available confirma sem allowTesting', async () => {
@@ -293,7 +220,7 @@ describe('Caixa de Descobertas por ICP', () => {
       opcoesOnboarding: {},
       descobertas: (fonte) => {
         vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
-        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        vi.spyOn(fonte, 'buscarPorPerfis').mockResolvedValue()
         return fonte
       },
     })
@@ -301,14 +228,14 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
-    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith(expect.objectContaining({ allowTesting: false }))
+    expect(fonteDeDescobertas.buscarPorPerfis).toHaveBeenCalledWith(expect.objectContaining({ allowTesting: false }))
   })
 
   it('não administrador em testing não busca e mostra a validação', async () => {
     const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
       descobertas: (fonte) => {
         vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: false })
-        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        vi.spyOn(fonte, 'buscarPorPerfis').mockResolvedValue()
         return fonte
       },
     })
@@ -316,7 +243,7 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
-    expect(fonteDeDescobertas.buscarContas).not.toHaveBeenCalled()
+    expect(fonteDeDescobertas.buscarPorPerfis).not.toHaveBeenCalled()
     expect(await screen.findByRole('alert')).toHaveTextContent('A fonte desta busca ainda está em validação pela equipe Althius.')
   })
 
@@ -325,7 +252,7 @@ describe('Caixa de Descobertas por ICP', () => {
     const { usuario } = renderizarAppCom('/contas/descobertas', {
       opcoesOnboarding: {},
       descobertas: (fonte) => {
-        vi.spyOn(fonte, 'buscarContas').mockRejectedValue(new Error(mensagem))
+        vi.spyOn(fonte, 'buscarPorPerfis').mockRejectedValue(new Error(mensagem))
         return fonte
       },
     })

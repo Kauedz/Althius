@@ -1,8 +1,8 @@
 // A Aprovação que um Agente pediu num passo de ferramenta, mostrada ali mesmo na Conversa (ADR-0022): a ação, o impacto e,
 // enquanto pendente, Aprovar e Recusar. Só o Administrador decide; os demais veem o estado. A mesma Aprovação também
-// está na fila /aprovacoes, onde o Administrador decide as que foram pedidas nas Conversas dos outros. A nova versão de
-// uma seção do Playbook que o Scopus ou o Ethos propôs (CRM-09) aparece aqui também, com a vigente ao lado da proposta, e
-// a Sequência que o Rhetor propôs (cadencia-pela-ia 02) e a Aderência que o Scopus propôs (kanban-de-prospeccao 08), que
+// está na fila /aprovacoes, onde o Administrador decide as que foram pedidas nas Conversas dos outros. A revisão de uma
+// seção do Playbook que o Scopus ou o Ethos propôs antes da retirada dele (CRM-09, contexto-da-empresa 07) aparece aqui
+// só como registro, e a Sequência que o Rhetor propôs (cadencia-pela-ia 02) e a Aderência que o Scopus propôs (kanban-de-prospeccao 08), que
 // só o Vendedor responsável decide.
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'

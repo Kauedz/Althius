@@ -47,10 +47,10 @@ export interface RunDb {
   finish(runId: string, status: 'succeeded' | 'failed', errorCode: string | null, model: string | null): Promise<void>
   searchAccounts(runId: string, termo: string): Promise<ContaEncontrada[]>
   /**
-   * agent_run_playbook: a Empresa e as seções do Playbook da Especialidade, só as já escritas. Opcional: um motor sem
-   * ela roda como antes, sem o contexto da empresa.
+   * agent_run_company_context: o Contexto da empresa (Empresa, Perfil de cliente ideal e Personas) do Workspace da
+   * Execução, na versão que ela fixou na primeira leitura. Opcional: um motor sem ela roda como antes, sem o contexto.
    */
-  playbook?(runId: string, specialty: string): Promise<SecaoDoPlaybookNaExecucao[]>
+  contextoDaEmpresa?(runId: string): Promise<ContextoDaEmpresaNaExecucao>
   /**
    * record_agent_run_cost: grava o custo real da Execução já fechada (tokens somados dos eventos e o modelo). Opcional:
    * um motor sem ela roda como antes, sem registrar custo.
@@ -163,12 +163,16 @@ export interface ChaveDoCliente {
   apiKey: string
 }
 
-/** Uma seção do Playbook do Workspace como o motor a recebe. */
-export interface SecaoDoPlaybookNaExecucao {
-  section: string
-  name: string
-  content: { texto?: unknown; linhas?: unknown } | null
+/** O Contexto da empresa como o motor o recebe: os três textos e a versão (nula quando nada foi salvo). */
+export interface ContextoDaEmpresaNaExecucao {
+  version: number | null
+  empresa: string
+  icp: string
+  personas: string
 }
+
+/** O contexto de um Workspace que ainda não salvou nenhuma versão. */
+export const CONTEXTO_VAZIO: ContextoDaEmpresaNaExecucao = { version: null, empresa: '', icp: '', personas: '' }
 
 /** Uma falha que vira o motivo gravado na Execução (`error_code`). */
 export class ErroDoModelo extends Error {
@@ -474,85 +478,119 @@ export async function coordenarPedido(
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// O contexto do Playbook nos Agentes (agentes-em-conversa, ticket 03).
+// O Contexto da empresa nos Agentes (contexto-da-empresa, ticket 06).
 
-/** O Playbook entra no prompt até este tamanho; o que passar é cortado, com o aviso. */
-export const MAX_CARACTERES_DO_PLAYBOOK = 24_000
+/** Cada texto do Contexto da empresa entra no prompt até este tamanho; o que passar é cortado, com o aviso. */
+export const MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO = 12_000
 
-function linhasComoTexto(linhas: unknown): string[] {
-  if (!Array.isArray(linhas)) return []
-  return linhas.flatMap((linha) => {
-    if (!linha || typeof linha !== 'object') return []
-    const campos = Object.entries(linha as Record<string, unknown>)
-      .filter(([, valor]) => typeof valor === 'string' && valor.trim() !== '')
-      .map(([campo, valor]) => `${campo}: ${String(valor).trim()}`)
-    return campos.length ? [`- ${campos.join('; ')}`] : []
-  })
+const CAMINHO_DO_CONTEXTO = 'Configurações → Contexto da empresa'
+
+const TEXTOS_DO_CONTEXTO = [
+  { campo: 'empresa', nome: 'Empresa', corte: 'a Empresa foi cortada por ser longa' },
+  { campo: 'icp', nome: 'Perfil de cliente ideal', corte: 'o Perfil de cliente ideal foi cortado por ser longo' },
+  { campo: 'personas', nome: 'Personas', corte: 'as Personas foram cortadas por serem longas' },
+] as const
+
+/** Como cada Especialidade usa o mesmo contexto, sem trocar de papel. */
+const FOCO_DO_PAPEL: Record<string, string> = {
+  scopus:
+    'Para o seu papel (Scopus): o Perfil de cliente ideal orienta a busca e a avaliação das Contas-alvo; a Empresa diz ' +
+    'o que é vendido. Primário e secundários são perfis diferentes: não misture o setor de um com o porte de outro.',
+  ethos:
+    'Para o seu papel (Ethos): as Personas orientam o Comitê de compra (quem decide, influencia e defende); o Perfil de ' +
+    'cliente ideal diz em que empresas elas estão.',
+  rhetor:
+    'Para o seu papel (Rhetor): escreva a partir da Empresa (oferta, problemas resolvidos e diferenciais) e das Personas ' +
+    '(dores, objetivos e papel na compra); use o Perfil de cliente ideal para dizer por que a Conta encaixa.',
+  oraculum:
+    'Para o seu papel (Oraculum): a Empresa orienta a presença da marca nos LLMs; o Perfil de cliente ideal e as ' +
+    'Personas dizem quem pesquisa antes de comprar.',
 }
 
-export function corpoDaSecao(secao: SecaoDoPlaybookNaExecucao): string {
-  const texto = typeof secao.content?.texto === 'string' ? secao.content.texto.trim() : ''
-  return [texto, ...linhasComoTexto(secao.content?.linhas)].filter(Boolean).join('\n')
+const REGRA_OPERACIONAL =
+  'O Contexto da empresa não define cadência, scripts, templates, SLA nem critérios de passagem. Quando precisar ' +
+  'disso, use o que o fluxo correspondente oferece (o pedido do usuário, as ferramentas e os templates de Sequência) ' +
+  'ou pergunte ao usuário; nunca invente.'
+
+const REGRA_DE_ESCRITA =
+  `Você não altera o Contexto da empresa: só um Administrador edita, em ${CAMINHO_DO_CONTEXTO}. Se a conversa chegar ` +
+  'a uma correção, mostre o texto sugerido e diga que um Administrador precisa salvá-lo.'
+
+/**
+ * Os textos escritos do Contexto da empresa, cada um com o título ("### Empresa") e cortado em
+ * MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO; texto vazio fica de fora. Vazio quando nenhum está escrito.
+ */
+export function textosDoContexto(contexto: ContextoDaEmpresaNaExecucao): string {
+  return TEXTOS_DO_CONTEXTO.map((t) => ({ ...t, texto: String(contexto[t.campo] ?? '').trim() }))
+    .filter((t) => t.texto !== '')
+    .map(({ nome, texto, corte }) => {
+      const cortado = texto.length > MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO
+        ? `${texto.slice(0, MAX_CARACTERES_POR_TEXTO_DO_CONTEXTO)}\n[…${corte}]`
+        : texto
+      return `### ${nome}\n${cortado}`
+    }).join('\n\n')
 }
 
 /**
- * O que o Agente sabe da empresa, pelo Playbook do Workspace. Sem a seção Empresa (ou sem Playbook nenhum), ele é
- * mandado a perguntar o que a empresa vende antes de propor qualquer coisa. Só texto do Playbook: nunca dado de
- * Contatos. `undefined` quando o motor não leu o Playbook: nada é dito, e o Agente trabalha como antes.
+ * O que o Agente sabe da empresa, pelo Contexto da empresa vigente do Workspace. Sem contexto, ele é mandado a perguntar
+ * o que a empresa vende e a levar a pessoa às Configurações. Só os três textos: nunca dado de Contatos nem Playbook.
  */
-export function contextoDoPlaybook(secoes: SecaoDoPlaybookNaExecucao[] | undefined): string {
-  if (secoes === undefined) return ''
-  const escritas = secoes.filter((secao) => corpoDaSecao(secao) !== '')
-  const partes: string[] = []
-  if (escritas.length > 0) {
-    let corpo = escritas.map((secao) => `### ${secao.name}\n${corpoDaSecao(secao)}`).join('\n\n')
-    if (corpo.length > MAX_CARACTERES_DO_PLAYBOOK) {
-      corpo = `${corpo.slice(0, MAX_CARACTERES_DO_PLAYBOOK)}\n[…o Playbook foi cortado por ser longo]`
-    }
-    partes.push(
-      'Playbook do Workspace: o que a empresa definiu sobre si mesma. Use isto como a fonte sobre a empresa, e ao ' +
-      'usar algo daqui cite a seção entre parênteses, por exemplo "(Playbook, seção ICP)".\n\n' + corpo,
-    )
+export function contextoDaEmpresa(contexto: ContextoDaEmpresaNaExecucao, specialty: string): string {
+  const escritos = TEXTOS_DO_CONTEXTO.map((t) => ({ ...t, texto: String(contexto[t.campo] ?? '').trim() }))
+    .filter((t) => t.texto !== '')
+  if (escritos.length === 0) {
+    return [
+      'O Workspace ainda não tem Contexto da empresa. Antes de propor ICP, Personas, textos ou qualquer conteúdo sobre ' +
+      'a empresa, pergunte ao usuário o que a empresa vende, para quem e quais são os melhores clientes (termine com ' +
+      `"STATUS: pergunta"), e diga que um Administrador gera ou escreve o contexto em ${CAMINHO_DO_CONTEXTO}. Não ` +
+      'invente nada sobre a empresa.',
+      REGRA_OPERACIONAL,
+      REGRA_DE_ESCRITA,
+    ].join('\n\n')
   }
-  if (!escritas.some((secao) => secao.section === 'empresa')) {
-    partes.push(
-      'O Playbook deste Workspace ainda não tem a seção Empresa. Antes de propor ICP, Personas, textos ou qualquer ' +
-      'conteúdo sobre a empresa, pergunte ao usuário o que a empresa vende, para quem e quais são os melhores ' +
-      'clientes (termine com "STATUS: pergunta"). Não invente nada sobre a empresa.',
-    )
-  }
-  partes.push(
-    'Se faltar no Playbook algo de que você precisa, diga o que falta e pergunte ao usuário; não preencha com suposição.',
-  )
-  return partes.join('\n\n')
+  const corpo = textosDoContexto(contexto)
+  const faltando = TEXTOS_DO_CONTEXTO.filter((t) => !escritos.some((e) => e.campo === t.campo)).map((t) => t.nome)
+  const versao = contexto.version ? ` (versão ${contexto.version})` : ''
+  return [
+    `Contexto da empresa${versao}: o que o Workspace definiu sobre a própria empresa, os clientes ideais e quem compra. ` +
+    'Use isto como a fonte sobre a empresa e, ao usar algo daqui, cite o texto entre parênteses, por exemplo ' +
+    '"(Contexto da empresa, Perfil de cliente ideal)". Hipóteses do texto continuam hipóteses: não as apresente como fato.',
+    corpo,
+    FOCO_DO_PAPEL[specialty] ?? '',
+    faltando.length
+      ? `O Contexto da empresa ainda não tem: ${faltando.join(', ')}. Se precisar disso, pergunte ao usuário e diga que ` +
+        `um Administrador completa em ${CAMINHO_DO_CONTEXTO}; não preencha com suposição.`
+      : '',
+    REGRA_OPERACIONAL,
+    REGRA_DE_ESCRITA,
+  ].filter(Boolean).join('\n\n')
 }
 
+const CONTEXTO_ILEGIVEL =
+  'O Contexto da empresa não pôde ser lido agora. Não suponha nada sobre a empresa, o ICP ou as Personas: se precisar ' +
+  'deles, diga ao usuário que a leitura falhou e pergunte o que for necessário.'
+
 /**
- * O contexto do Playbook de cada Especialidade numa Execução, lido uma vez só por Especialidade (os Agentes voltam a
- * falar nas rodadas). Uma falha na leitura vira `undefined`: o Agente trabalha sem o contexto, e a falha vai ao log.
+ * O Contexto da empresa de uma Execução, lido uma vez só (todas as Especialidades e rodadas usam a mesma versão) e
+ * escrito com o foco de cada Especialidade. Uma falha na leitura vira o aviso de que o contexto não pôde ser lido, e
+ * vai ao log; um banco sem a leitura roda como antes, sem contexto.
  */
-export function leitorDoPlaybook(
+export function leitorDoContexto(
   db: RunDb,
   runId: string,
   log: (fields: Record<string, unknown>) => void,
   tipoDoLog: string,
 ): (specialty: string) => Promise<string> {
-  const lidos = new Map<string, Promise<string>>()
-  return (specialty) => {
-    let lido = lidos.get(specialty)
-    if (!lido) {
-      lido = (async () => {
-        if (!db.playbook) return ''
-        try {
-          return contextoDoPlaybook(await db.playbook(runId, specialty))
-        } catch (error) {
-          log({ type: tipoDoLog, runId, outcome: 'playbook_failed', message: String(error) })
-          return ''
-        }
-      })()
-      lidos.set(specialty, lido)
-    }
-    return lido
+  let lido: Promise<ContextoDaEmpresaNaExecucao | null> | undefined
+  return async (specialty) => {
+    if (!db.contextoDaEmpresa) return ''
+    lido ??= db.contextoDaEmpresa(runId).catch((error) => {
+      log({ type: tipoDoLog, runId, outcome: 'company_context_failed', message: String(error) })
+      return null
+    })
+    const contexto = await lido
+    if (contexto === null) return CONTEXTO_ILEGIVEL
+    return contextoDaEmpresa(contexto, specialty)
   }
 }
 

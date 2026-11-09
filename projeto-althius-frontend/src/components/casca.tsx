@@ -28,7 +28,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAmbiente, useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDeOnboarding, useFonteDoContextoDaEmpresa } from '@/fonte/contexto'
 import { identidadeDoWorkspace, progressoDoOnboarding } from '@/fonte/regras-onboarding'
 import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
@@ -116,7 +116,14 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const fonteDeOnboarding = useFonteDeOnboarding()
   const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
-  const progresso = onboarding && progressoDoOnboarding(onboarding)
+  // O Contexto da empresa conta no progresso do checklist do Norte, que por ora só a Demonstração tem: o Workspace
+  // operacional não lê o contexto aqui.
+  const contextoDaEmpresa = useDados(
+    useFonteDoContextoDaEmpresa(),
+    (fonte) => (modo === 'demonstracao' ? fonte.contexto() : Promise.resolve(null)),
+    [modo],
+  )
+  const progresso = onboarding && progressoDoOnboarding(onboarding, !!contextoDaEmpresa?.vigente)
   // O Workspace criado no onboarding se apresenta pelo que a pessoa informou; sem ele, vale o da demonstração.
   const doOnboarding = onboarding ? identidadeDoWorkspace(onboarding) : null
   const agentes = useDados((fonte) => fonte.agentes(), [])

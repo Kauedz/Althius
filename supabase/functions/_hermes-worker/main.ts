@@ -8,7 +8,8 @@ import {
   type ContaEncontrada,
   creditosDoBanco,
   type Reserva,
-  type SecaoDoPlaybookNaExecucao,
+  CONTEXTO_VAZIO,
+  type ContextoDaEmpresaNaExecucao,
 } from '../_shared/orquestracao.ts'
 import {
   bancoDoExecutor,
@@ -53,8 +54,8 @@ const db: FilaDb = {
   custo: async (runId) => {
     await rpc<void>('record_agent_run_cost', { p_run_id: runId })
   },
-  playbook: async (runId, specialty) =>
-    (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
+  contextoDaEmpresa: async (runId) =>
+    (await rpc<ContextoDaEmpresaNaExecucao | null>('agent_run_company_context', { p_run_id: runId })) ?? CONTEXTO_VAZIO,
   creditos: creditosDoBanco(rpc),
   usaChaveDoCliente: async (runId) => (await rpc<boolean | null>('agent_run_uses_own_ai_key', { p_run_id: runId })) === true,
   // Os anexos do pedido (PR-10), só o texto: o Hermes não recebe imagem.

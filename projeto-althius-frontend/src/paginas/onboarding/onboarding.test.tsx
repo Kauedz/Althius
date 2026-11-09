@@ -1,6 +1,11 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { LeituraDoSite } from '@/fonte/onboarding-tipos'
+import type { FonteDoContextoDaEmpresa, TextosDoContexto } from '@/fonte/contexto-da-empresa-tipos'
+import {
+  CONTEXTO_DA_DEMONSTRACAO,
+  criarFonteDoContextoDaEmpresaSimulada,
+  type LeituraSimulada,
+} from '@/fonte/simulada-contexto-da-empresa'
 import {
   criarFonteDeOnboardingSimulada,
   type ArmazenamentoDeOnboarding,
@@ -10,9 +15,34 @@ import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 type Usuario = ReturnType<typeof renderizarApp>['usuario']
 
-/** O app de uma sessão que ainda não passou pelo onboarding, a partir desta rota. */
-function renderizarSemOnboarding(rota: string, opcoes: OpcoesFonteDeOnboardingSimulada = {}, noNavegador = false) {
-  return renderizarApp(rota, {}, {}, { jaConcluido: false, ...opcoes }, {}, {}, noNavegador)
+/** Um Workspace novo: sem site e sem Contexto da empresa. A leitura do site simulada responde na hora. */
+function contextoNovo(lerSite: (site: string) => Promise<LeituraSimulada> = async () => CONTEXTO_DA_DEMONSTRACAO) {
+  return criarFonteDoContextoDaEmpresaSimulada({ inicial: null, site: '', lerSite })
+}
+
+/**
+ * O app de uma sessão que ainda não passou pelo onboarding, a partir desta rota. Sem `contexto`, o Workspace começa
+ * sem Contexto da empresa.
+ */
+function renderizarSemOnboarding(
+  rota: string,
+  opcoes: OpcoesFonteDeOnboardingSimulada = {},
+  noNavegador = false,
+  contexto: FonteDoContextoDaEmpresa = contextoNovo(),
+) {
+  return renderizarAppCom(rota, { opcoesOnboarding: { jaConcluido: false, ...opcoes }, contextoDaEmpresa: () => contexto }, noNavegador)
+}
+
+/** Uma leitura do site que só termina quando o teste manda. */
+function leituraControlada() {
+  let entregar: (leitura: LeituraSimulada) => void = () => {}
+  const lerSite = vi.fn(
+    () =>
+      new Promise<LeituraSimulada>((resolver) => {
+        entregar = resolver
+      }),
+  )
+  return { lerSite, entregar: (leitura: LeituraSimulada) => entregar(leitura) }
 }
 
 const PAPEIS = ['Founder', 'Head de Vendas', 'SDR/BDR', 'AE', 'Marketing', 'RevOps', 'Outro']
@@ -31,14 +61,6 @@ const ORIGENS = [
   'Busca no Google',
   'Outro',
 ]
-
-/** A leitura de um site controlada pelo teste, no lugar da leitura fixa da Fonte simulada. */
-const LEITURA_DE_TESTE: LeituraDoSite = {
-  oQueVende: 'Sensores de vibração para linhas de produção.',
-  miniIcp: 'Indústrias de processo contínuo com manutenção própria.',
-  porQueCompram: 'Para prever falhas antes da parada de linha.',
-  personas: ['Gerente de Manutenção', 'Diretor Industrial'],
-}
 
 function memoria(): ArmazenamentoDeOnboarding {
   const dados = new Map<string, string>()
@@ -98,8 +120,8 @@ describe('Onboarding pós-login: entrada', () => {
   })
 
   it('com parâmetro de convite entra no ramo de convidado, sem empresa, domínio nem leitura do site', async () => {
-    const leitorDeSite = vi.fn(async () => LEITURA_DE_TESTE)
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo', { leitorDeSite })
+    const lerSite = vi.fn(async () => CONTEXTO_DA_DEMONSTRACAO)
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo', {}, false, contextoNovo(lerSite))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
     expect(screen.getByText('Passo 1 de 4')).toBeInTheDocument()
@@ -116,18 +138,18 @@ describe('Onboarding pós-login: entrada', () => {
     await usuario.click(screen.getByRole('button', { name: 'Pular convite' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
     expect(screen.getByText(/Workspace para o qual foi convidado/)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('')
+    expect(screen.queryByRole('textbox', { name: 'Mini-ICP' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '1. Contexto da empresa' })).getByText(/Um Administrador do Workspace ainda vai gerar/)).toBeInTheDocument()
 
     const estado = await fonteDeOnboarding.ler()
     expect(estado.ramo).toBe('convidado')
     expect(estado.workspace).toBeNull()
     expect(estado.empresa).toBe('')
     expect(estado.dominio).toBe('')
-    expect(estado.leitura.situacao).toBe('inativa')
     expect(estado.papel).toBe('Head de Vendas')
     expect(estado.comoConheceu).toBe('Indicação')
     expect(estado.convitePulado).toBe(true)
-    expect(leitorDeSite).not.toHaveBeenCalled()
+    expect(lerSite).not.toHaveBeenCalled()
   })
 })
 
@@ -322,182 +344,119 @@ describe('Onboarding pós-login: Day0 do criador', () => {
   })
 })
 
-describe('Onboarding pós-login: leitura do site', () => {
-  it('a leitura fixa da Fonte simulada pré-preenche o mini-ICP e as Personas como base editável', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
+describe('Onboarding pós-login: Contexto da empresa', () => {
+  function itemDoContexto() {
+    return screen.getByRole('listitem', { name: '1. Contexto da empresa' })
+  }
+
+  it('confirmar o site gera o contexto sem outra confirmação, e a primeira geração fica vigente sozinha', async () => {
+    const contexto = contextoNovo()
+    const { usuario } = renderizarSemOnboarding('/onboarding', {}, false, contexto)
     await day0Criador(usuario)
 
-    const leitura = screen.getByRole('region', { name: 'Leitura do site' })
-    expect(within(leitura).getByText(/nortedados\.com\.br/)).toBeInTheDocument()
-    expect(within(leitura).getByText(/Revise, edite ou descarte/)).toBeInTheDocument()
-
-    expect(screen.getByRole('textbox', { name: 'O que você vende' })).toHaveValue(
-      'Plataforma de dados que unifica engenharia, análise e IA num só lugar.',
-    )
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue(
-      'Empresas B2B de médio e grande porte no Brasil, com time de dados próprio e operação comercial estruturada.',
-    )
-    expect(screen.getByRole('textbox', { name: 'Por que compram' })).toHaveValue(
-      'Para decidir com uma base única de dados e cortar o custo de ferramentas soltas.',
-    )
-    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue(
-      [
-        'Diretora de Dados: patrocina a compra e sofre com plataformas espalhadas.',
-        'Head de Engenharia de Dados: avalia a integração com o que já existe.',
-        'CFO: aprova o investimento quando vê o custo cair.',
-      ].join('\n'),
-    )
-
-    const estado = await fonteDeOnboarding.ler()
-    expect(estado.leitura.situacao).toBe('pronta')
-    expect(estado.checklist.produto).toBe('pendente')
-    expect(estado.checklist.persona).toBe('pendente')
-  })
-
-  it('edições e descarte prevalecem sobre a leitura e persistem na Fonte', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
-    await day0Criador(usuario)
-
-    const miniIcp = screen.getByRole('textbox', { name: 'Mini-ICP' })
-    expect(miniIcp).toHaveValue(LEITURA_DE_TESTE.miniIcp)
-    await usuario.clear(miniIcp)
-    await usuario.type(miniIcp, 'Indústrias com operação própria no Sul.')
-    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
-    const produto = screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })
-    expect(await within(produto).findByText('Concluído')).toBeInTheDocument()
-
-    const persona = screen.getByRole('listitem', { name: '2. Persona' })
-    expect(within(persona).getByText(/não muda as definições de Personas da Memória do Workspace/)).toBeInTheDocument()
-    expect(within(persona).getByText(/Não é a classificação de um Contato/)).toBeInTheDocument()
-    expect(within(persona).getByText(/não é a Memória do Agente/)).toBeInTheDocument()
-    await usuario.click(within(persona).getByRole('button', { name: 'Descartar sugestão' }))
-    expect(within(persona).getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue('')
-    expect(within(persona).getByRole('button', { name: 'Concluir Persona' })).toBeDisabled()
-    await usuario.type(within(persona).getByRole('textbox', { name: 'Personas possíveis' }), 'Coordenadora de Confiabilidade')
-    await usuario.click(within(persona).getByRole('button', { name: 'Concluir Persona' }))
-    expect(await within(persona).findByText('Concluído')).toBeInTheDocument()
-
-    expect((await fonteDeOnboarding.ler()).checklist).toMatchObject({
-      miniIcp: 'Indústrias com operação própria no Sul.',
-      oQueVende: LEITURA_DE_TESTE.oQueVende,
-      porQueCompram: LEITURA_DE_TESTE.porQueCompram,
-      personas: ['Coordenadora de Confiabilidade'],
-      produto: 'concluido',
-      persona: 'concluido',
-    })
-  })
-
-  it('o descarte sobrevive a uma nova leitura, e só o que ainda é sugestão acompanha o novo domínio', async () => {
-    const OUTRA_LEITURA: LeituraDoSite = {
-      oQueVende: 'Software de gestão para clínicas.',
-      miniIcp: 'Clínicas com mais de dez consultórios.',
-      porQueCompram: 'Para parar de perder consultas por falta de confirmação.',
-      personas: ['Gestora da Clínica'],
+    expect(await within(itemDoContexto()).findByText('Concluído')).toBeInTheDocument()
+    expect(within(itemDoContexto()).getByText(/Pronto: Empresa, Perfil de cliente ideal e Personas/)).toBeInTheDocument()
+    expect(within(itemDoContexto()).getByRole('link', { name: 'Abrir em Configurações' })).toHaveAttribute('href', '/configuracoes/contexto')
+    expect(within(itemDoContexto()).queryByRole('button', { name: 'Pular contexto' })).not.toBeInTheDocument()
+    const { site, vigente, geracao } = await contexto.contexto()
+    expect(site).toBe('nortedados.com.br')
+    expect(vigente).toMatchObject({ versao: 1, origem: 'geracao', empresa: CONTEXTO_DA_DEMONSTRACAO.empresa })
+    expect(geracao).toBeNull()
+    for (const campo of ['Mini-ICP', 'O que você vende', 'Por que compram', 'Personas possíveis']) {
+      expect(screen.queryByRole('textbox', { name: campo })).not.toBeInTheDocument()
     }
-    const leitorDeSite = async (dominio: string) => (dominio === 'nortedados.com.br' ? LEITURA_DE_TESTE : OUTRA_LEITURA)
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
-    await day0Criador(usuario)
-
-    const persona = screen.getByRole('listitem', { name: '2. Persona' })
-    await usuario.click(within(persona).getByRole('button', { name: 'Descartar sugestão' }))
-    const oQueVende = screen.getByRole('textbox', { name: 'O que você vende' })
-    await usuario.clear(oQueVende)
-    await usuario.type(oQueVende, 'Consultoria de dados.')
-
-    await voltar(usuario)
-    await voltar(usuario)
-    await voltar(usuario)
-    const dominio = await screen.findByRole('textbox', { name: 'Domínio do site' })
-    await usuario.clear(dominio)
-    await usuario.type(dominio, 'clinicaviva.com.br')
-    await continuar(usuario)
-    await continuar(usuario)
-    await usuario.click(await screen.findByRole('button', { name: 'Pular convite' }))
-
-    expect(await screen.findByDisplayValue(OUTRA_LEITURA.miniIcp)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'O que você vende' })).toHaveValue('Consultoria de dados.')
-    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue('')
-    expect((await fonteDeOnboarding.ler()).checklist).toMatchObject({
-      miniIcp: OUTRA_LEITURA.miniIcp,
-      porQueCompram: OUTRA_LEITURA.porQueCompram,
-      oQueVende: 'Consultoria de dados.',
-      personas: [],
-    })
   })
 
-  it('uma leitura lenta não trava o wizard e não sobrescreve o que a pessoa já escreveu', async () => {
-    let entregar: (leitura: LeituraDoSite) => void = () => {}
-    const leitorDeSite = vi.fn(
-      () =>
-        new Promise<LeituraDoSite>((resolver) => {
-          entregar = resolver
-        }),
-    )
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
+  it('uma leitura lenta não trava o wizard; o checklist mostra o andamento até o contexto valer', async () => {
+    const { lerSite, entregar } = leituraControlada()
+    const { usuario } = renderizarSemOnboarding('/onboarding', {}, false, contextoNovo(lerSite))
+    await day0Criador(usuario)
+
+    expect(within(itemDoContexto()).getByText(/Lendo o site nortedados\.com\.br/)).toBeInTheDocument()
+    expect(within(itemDoContexto()).getByText('Pendente')).toBeInTheDocument()
+    await act(async () => entregar(CONTEXTO_DA_DEMONSTRACAO))
+    expect(await within(itemDoContexto()).findByText('Concluído')).toBeInTheDocument()
+    expect(lerSite).toHaveBeenCalledTimes(1)
+    expect(lerSite).toHaveBeenCalledWith('nortedados.com.br')
+  })
+
+  it('uma falha é comunicada e permite tentar de novo, escrever à mão ou concluir assim mesmo', async () => {
+    const respostas: LeituraSimulada[] = [{ falha: 'site_indisponivel' }, CONTEXTO_DA_DEMONSTRACAO]
+    const lerSite = vi.fn(async () => respostas.shift()!)
+    const { usuario } = renderizarSemOnboarding('/onboarding', {}, false, contextoNovo(lerSite))
+    await day0Criador(usuario)
+
+    expect(await within(itemDoContexto()).findByText(/Não conseguimos abrir o site/)).toBeInTheDocument()
+    expect(within(itemDoContexto()).getByRole('link', { name: 'Escrever à mão em Configurações' })).toHaveAttribute('href', '/configuracoes/contexto')
+    await usuario.click(within(itemDoContexto()).getByRole('button', { name: 'Tentar de novo' }))
+    expect(await within(itemDoContexto()).findByText('Concluído')).toBeInTheDocument()
+    expect(lerSite).toHaveBeenCalledTimes(2)
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+  })
+
+  it('o site pode ficar para depois: nada é lido, e o checklist leva a Configurações para informá-lo', async () => {
+    const lerSite = vi.fn(async () => CONTEXTO_DA_DEMONSTRACAO)
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', {}, false, contextoNovo(lerSite))
     await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
     await continuar(usuario)
     await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
     await continuar(usuario)
-    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'nortedados.com.br')
-    await continuar(usuario)
-
-    expect(await screen.findByRole('status')).toHaveTextContent(/Lendo o site nortedados\.com\.br/)
-    expect(leitorDeSite).toHaveBeenCalledWith('nortedados.com.br')
-    await usuario.click(screen.getByRole('radio', { name: 'LinkedIn' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Informar o site depois' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'LinkedIn' }))
     await continuar(usuario)
     await usuario.click(await screen.findByRole('button', { name: 'Pular convite' }))
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
-    const miniIcp = screen.getByRole('textbox', { name: 'Mini-ICP' })
-    expect(miniIcp).toHaveValue('')
-    await usuario.type(miniIcp, 'Times de receita no Sul.')
+    expect(await within(itemDoContexto()).findByText(/O site ficou para depois/)).toBeInTheDocument()
+    expect(within(itemDoContexto()).getByRole('link', { name: 'Informar o site em Configurações' })).toHaveAttribute('href', '/configuracoes/contexto')
+    expect(screen.getByRole('listitem', { name: 'Site e logo: falta' })).toBeInTheDocument()
+    expect(await fonteDeOnboarding.ler()).toMatchObject({ dominio: '', sitePulado: true })
+    expect(lerSite).not.toHaveBeenCalled()
 
-    await act(async () => entregar(LEITURA_DE_TESTE))
-
-    expect(await screen.findByDisplayValue(LEITURA_DE_TESTE.oQueVende)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('Times de receita no Sul.')
-    const estado = await fonteDeOnboarding.ler()
-    expect(estado.checklist.miniIcp).toBe('Times de receita no Sul.')
-    expect(estado.checklist.oQueVende).toBe(LEITURA_DE_TESTE.oQueVende)
+    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
   })
 
-  it('uma leitura com falha deixa os campos vazios e editáveis, e pode ser tentada de novo', async () => {
-    const leitorDeSite = vi
-      .fn<(dominio: string) => Promise<LeituraDoSite>>()
-      .mockRejectedValueOnce(new Error('site fora do ar'))
-      .mockResolvedValueOnce(LEITURA_DE_TESTE)
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
+  it('num Workspace que já tem contexto vigente, confirmar o site não gera nem substitui nada', async () => {
+    const lerSite = vi.fn(async () => ({ ...CONTEXTO_DA_DEMONSTRACAO, empresa: 'Outra' }) satisfies TextosDoContexto)
+    const contexto = criarFonteDoContextoDaEmpresaSimulada({ lerSite })
+    const { usuario } = renderizarSemOnboarding('/onboarding', {}, false, contexto)
     await day0Criador(usuario)
 
-    const leitura = screen.getByRole('region', { name: 'Leitura do site' })
-    expect(await within(leitura).findByText(/Não foi possível ler o site/)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toBeEnabled()
+    expect(within(itemDoContexto()).getByText('Concluído')).toBeInTheDocument()
+    expect(lerSite).not.toHaveBeenCalled()
+    expect(await contexto.contexto()).toMatchObject({ vigente: { versao: 1, empresa: CONTEXTO_DA_DEMONSTRACAO.empresa }, geracao: null })
+  })
 
-    await usuario.click(within(leitura).getByRole('button', { name: 'Tentar de novo' }))
-    expect(await screen.findByDisplayValue(LEITURA_DE_TESTE.miniIcp)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue(
-      'Gerente de Manutenção\nDiretor Industrial',
-    )
+  it('reabrir o onboarding no meio da leitura não começa outra', async () => {
+    const armazenamento = memoria()
+    const { lerSite, entregar } = leituraControlada()
+    const contexto = contextoNovo(lerSite)
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento }, false, contexto)
+    await day0Criador(primeira.usuario)
+    primeira.unmount()
+
+    renderizarSemOnboarding('/onboarding', { armazenamento }, false, contexto)
+    expect(await within(await screen.findByRole('listitem', { name: '1. Contexto da empresa' })).findByText(/Lendo o site/)).toBeInTheDocument()
+    await act(async () => entregar(CONTEXTO_DA_DEMONSTRACAO))
+    expect(await within(itemDoContexto()).findByText('Concluído')).toBeInTheDocument()
+    expect(lerSite).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('Onboarding pós-login: checklist e próximos passos', () => {
-  it('mostra três itens na ordem do Norte e, depois deles, Contas-alvo com Sinal e a Sequência como próximos passos', async () => {
+  it('mostra os itens na ordem do Norte e, depois deles, Contas-alvo com Sinal e a Sequência como próximos passos', async () => {
     const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     const lista = screen.getByRole('list', { name: 'Checklist do Norte' })
     expect(within(lista).getAllByRole('heading', { level: 2 }).map((titulo) => titulo.textContent)).toEqual([
-      '1. Mini-ICP e produto',
-      '2. Persona',
-      '3. Sinal',
+      '1. Contexto da empresa',
+      '2. Sinal',
     ])
     expect(within(lista).queryByText(/Cadência/)).not.toBeInTheDocument()
-    for (const item of within(lista).getAllByRole('listitem')) {
-      expect(within(item).getByText('Pendente')).toBeInTheDocument()
-    }
+    expect(within(screen.getByRole('listitem', { name: '2. Sinal' })).getByText('Pendente')).toBeInTheDocument()
 
     const proximos = screen.getByRole('list', { name: 'Próximos passos' })
     const passos = within(proximos).getAllByRole('link')
@@ -520,7 +479,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect((await fonteDeOnboarding.ler()).checklist.sinal).toBe('concluido')
 
     await usuario.click(screen.getByRole('link', { name: 'Voltar ao checklist' }))
-    const sinal = await screen.findByRole('listitem', { name: '3. Sinal' })
+    const sinal = await screen.findByRole('listitem', { name: '2. Sinal' })
     expect(within(sinal).getByText('Concluído')).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
@@ -539,9 +498,9 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo')
     await day0Convidado(usuario)
 
-    await usuario.click(screen.getByRole('button', { name: 'Pular mini-ICP' }))
-    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Pulado')).toBeInTheDocument()
-    expect((await fonteDeOnboarding.ler()).checklist.produto).toBe('pulado')
+    await usuario.click(screen.getByRole('button', { name: 'Pular contexto' }))
+    expect(within(screen.getByRole('listitem', { name: '1. Contexto da empresa' })).getByText('Pulado')).toBeInTheDocument()
+    expect((await fonteDeOnboarding.ler()).checklist.contexto).toBe('pulado')
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
     expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
@@ -559,26 +518,17 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect(estado).toMatchObject({ papel: 'RevOps', empresa: 'Norte Dados', dominio: 'nortedados.com.br', comoConheceu: 'LinkedIn' })
   })
 
-  it('reabrir restaura Day0, leitura e checklist e não cria outro Workspace', async () => {
+  it('reabrir restaura Day0 e checklist e não cria outro Workspace', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
     await day0Criador(primeira.usuario)
-
-    const miniIcp = screen.getByRole('textbox', { name: 'Mini-ICP' })
-    await primeira.usuario.clear(miniIcp)
-    await primeira.usuario.type(miniIcp, 'Times de receita com operação no Brasil.')
-    await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
-    expect(await within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).findByText('Concluído')).toBeInTheDocument()
-
+    await primeira.usuario.click(screen.getByRole('button', { name: 'Pular Sinal' }))
     const id = (await primeira.fonteDeOnboarding.ler()).workspace?.id
     primeira.unmount()
 
-    const leitorDaSegunda = vi.fn(async () => LEITURA_DE_TESTE)
-    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: leitorDaSegunda })
+    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento })
     expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('Times de receita com operação no Brasil.')
-    expect(screen.getByRole('textbox', { name: 'O que você vende' })).toHaveValue(LEITURA_DE_TESTE.oQueVende)
-    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Concluído')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '2. Sinal' })).getByText('Pulado')).toBeInTheDocument()
 
     const estado = await segunda.fonteDeOnboarding.ler()
     expect(estado.workspace).toEqual({ id, nomeSugerido: 'Norte Dados' })
@@ -586,8 +536,6 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect(estado.dominio).toBe('nortedados.com.br')
     expect(estado.comoConheceu).toBe('LinkedIn')
     expect(estado.convitePulado).toBe(true)
-    expect(estado.leitura.situacao).toBe('pronta')
-    expect(leitorDaSegunda).not.toHaveBeenCalled()
   })
 })
 
@@ -615,7 +563,7 @@ describe('Onboarding pós-login: entrada na Casca', () => {
 
   it('com o Day0 concluído, o checklist pendente não prende: a Casca abre sem redirecionar', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
     await day0Criador(primeira.usuario)
     primeira.unmount()
 
@@ -708,36 +656,8 @@ describe('Onboarding pós-login: switch de demonstração entre criador e convid
     expect(estado.workspace).toEqual({ id: expect.any(String), nomeSugerido: 'Norte Dados' })
   })
 
-  it('a leitura do site que o criador deixou em andamento não chega ao convidado depois da troca', async () => {
-    let entregar: (leitura: LeituraDoSite) => void = () => {}
-    const leitorDeSite = () =>
-      new Promise<LeituraDoSite>((resolver) => {
-        entregar = resolver
-      })
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
-    await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
-    await continuar(usuario)
-    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
-    await continuar(usuario)
-    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'nortedados.com.br')
-    await continuar(usuario)
-    expect(await screen.findByRole('status')).toHaveTextContent(/Lendo o site nortedados\.com\.br/)
-
-    await trocarConfirmando(usuario, 'Convidado')
-    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
-    await act(async () => entregar(LEITURA_DE_TESTE))
-    await day0Convidado(usuario)
-
-    expect(screen.queryByRole('region', { name: 'Leitura do site' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue('')
-    const estado = await fonteDeOnboarding.ler()
-    expect(estado.leitura).toEqual({ situacao: 'inativa', resultado: null })
-    expect(estado.checklist.miniIcp).toBe('')
-  })
-
   it('com o Day0 feito, a troca avisa que recomeça do zero e pede confirmação; cancelar não muda nada', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     await usuario.click(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' }))
@@ -785,7 +705,7 @@ describe('Onboarding pós-login: switch de demonstração entre criador e convid
 describe('Onboarding pós-login: reentrada e progresso do checklist', () => {
   it('com o Day0 concluído, reabrir o fluxo começa no checklist, mesmo depois de voltar a um passo do Day0', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
     await day0Criador(primeira.usuario)
     await voltar(primeira.usuario)
     await voltar(primeira.usuario)
@@ -798,9 +718,9 @@ describe('Onboarding pós-login: reentrada e progresso do checklist', () => {
     expect(screen.queryByRole('heading', { level: 1, name: 'Como nos conheceu?' })).not.toBeInTheDocument()
   })
 
-  it('visitar Sinais pela Casca conclui o item 3 sem Monitoramento, mesmo depois de voltar a um passo do Day0', async () => {
+  it('visitar Sinais pela Casca conclui o item do Sinal sem Monitoramento, mesmo depois de voltar a um passo do Day0', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
     await day0Criador(primeira.usuario)
     await voltar(primeira.usuario)
     expect(await screen.findByRole('heading', { level: 1, name: 'Convide colegas' })).toBeInTheDocument()
@@ -815,48 +735,39 @@ describe('Onboarding pós-login: reentrada e progresso do checklist', () => {
   })
 
   it('com o onboarding incompleto, a Casca mostra o progresso e reabre o checklist onde a sessão parou', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
-    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
     await usuario.click(screen.getByRole('link', { name: 'Criar a Sequência' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Sequências' })).toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('link', { name: 'Onboarding, 60% completo' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Onboarding, 75% completo' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
-    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Concluído')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '1. Contexto da empresa' })).getByText('Concluído')).toBeInTheDocument()
   })
 
   it('cada item concluído aparece como concluído, e o progresso do checklist fica guardado na Fonte', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { lerSite } = leituraControlada()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento }, false, contextoNovo(lerSite))
     await day0Criador(primeira.usuario)
-    expect(progressoNaTela()).toBe(40)
-
-    await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
-    expect(await within(screen.getByRole('listitem', { name: '2. Persona' })).findByText('Concluído')).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(60)
+    expect(progressoNaTela()).toBe(50)
 
     await primeira.usuario.click(screen.getByRole('button', { name: 'Pular Sinal' }))
-    expect(await within(screen.getByRole('listitem', { name: '3. Sinal' })).findByText('Pulado')).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(60)
+    expect(await within(screen.getByRole('listitem', { name: '2. Sinal' })).findByText('Pulado')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(50)
 
     await primeira.usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
     await primeira.usuario.click(await screen.findByRole('link', { name: 'Voltar ao checklist' }))
-    expect(await within(await screen.findByRole('listitem', { name: '3. Sinal' })).findByText('Concluído')).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(80)
+    expect(await within(await screen.findByRole('listitem', { name: '2. Sinal' })).findByText('Concluído')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(75)
     primeira.unmount()
 
-    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento })
+    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento }, false, contextoNovo(lerSite))
     await screen.findByRole('progressbar', { name: 'Onboarding completo' })
-    expect(progressoNaTela()).toBe(80)
-    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Pendente')).toBeInTheDocument()
-    expect(within(screen.getByRole('listitem', { name: '2. Persona' })).getByText('Concluído')).toBeInTheDocument()
-    expect(within(screen.getByRole('listitem', { name: '3. Sinal' })).getByText('Concluído')).toBeInTheDocument()
-    expect((await segunda.fonteDeOnboarding.ler()).checklist).toMatchObject({
-      produto: 'pendente',
-      persona: 'concluido',
-      sinal: 'concluido',
-    })
+    expect(progressoNaTela()).toBe(75)
+    expect(within(screen.getByRole('listitem', { name: '1. Contexto da empresa' })).getByText('Pendente')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '2. Sinal' })).getByText('Concluído')).toBeInTheDocument()
+    expect((await segunda.fonteDeOnboarding.ler()).checklist).toEqual({ contexto: 'pendente', sinal: 'concluido' })
   })
 })
 
@@ -866,67 +777,55 @@ function progressoNaTela() {
 }
 
 describe('Onboarding pós-login: progresso gamificado até 100%', () => {
-  it('o criador chega ao checklist com Workspace e Site feitos, e a chamada aponta o próximo marco do Norte', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+  it('o criador chega ao checklist com Workspace, Site e o contexto gerado, e a chamada aponta o próximo marco do Norte', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
-    expect(progressoNaTela()).toBe(40)
-    expect(screen.getByText('40%')).toBeInTheDocument()
+    expect(await screen.findByText('75%')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(75)
     const marcos = screen.getByRole('list', { name: 'Marcos do onboarding' })
     expect(within(marcos).getAllByRole('listitem').map((marco) => marco.getAttribute('aria-label'))).toEqual([
       'Workspace: feito',
       'Site e logo: feito',
-      'Mini-ICP e produto: falta',
-      'Persona: falta',
+      'Contexto da empresa: feito',
       'Sinal: falta',
     ])
-    expect(screen.getByText(/Próximo: Mini-ICP e produto/)).toBeInTheDocument()
-
-    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
-    expect(await screen.findByText(/Próximo: Persona/)).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(60)
+    expect(screen.getByText(/Próximo: Sinal/)).toBeInTheDocument()
   })
 
-  it('o convidado não informa o site: o progresso tem quatro marcos e começa em 25%', async () => {
+  it('o convidado não informa o site: o progresso tem três marcos e começa em 33%', async () => {
     const { usuario } = renderizarSemOnboarding('/onboarding?convite=demo')
     await day0Convidado(usuario)
 
-    expect(progressoNaTela()).toBe(25)
+    expect(progressoNaTela()).toBe(33)
     const marcos = screen.getByRole('list', { name: 'Marcos do onboarding' })
     expect(within(marcos).getAllByRole('listitem').map((marco) => marco.getAttribute('aria-label'))).toEqual([
       'Workspace: feito',
-      'Mini-ICP e produto: falta',
-      'Persona: falta',
+      'Contexto da empresa: falta',
       'Sinal: falta',
     ])
   })
 
   it('um item pulado não conta, e a chamada continua apontando para ele', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario } = renderizarSemOnboarding('/onboarding', {}, false, contextoNovo(leituraControlada().lerSite))
     await day0Criador(usuario)
 
-    await usuario.click(screen.getByRole('button', { name: 'Pular mini-ICP' }))
-    expect(await within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).findByText('Pulado')).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(40)
-
-    await usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
-    expect(await within(screen.getByRole('listitem', { name: '2. Persona' })).findByText('Concluído')).toBeInTheDocument()
-    expect(progressoNaTela()).toBe(60)
-    expect(screen.getByText(/Próximo: Mini-ICP e produto/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Pular contexto' }))
+    expect(await within(screen.getByRole('listitem', { name: '1. Contexto da empresa' })).findByText('Pulado')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(50)
+    expect(screen.getByText(/Próximo: Contexto da empresa/)).toBeInTheDocument()
   })
 
   it('a 100%, o checklist comemora o onboarding completo e a Casca deixa de mostrar o atalho', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
     expect(screen.queryByText(/Onboarding 100% completo/)).not.toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
-    await usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
     await usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
     await usuario.click(await screen.findByRole('link', { name: 'Voltar ao checklist' }))
 
     await screen.findByRole('progressbar', { name: 'Onboarding completo' })
-    expect(progressoNaTela()).toBe(100)
+    await vi.waitFor(() => expect(progressoNaTela()).toBe(100))
     expect(screen.getByText(/Onboarding 100% completo/)).toBeInTheDocument()
     expect(screen.queryByText(/Próximo:/)).not.toBeInTheDocument()
 
@@ -936,15 +835,13 @@ describe('Onboarding pós-login: progresso gamificado até 100%', () => {
   })
 
   it('concluir o onboarding incompleto não esconde o atalho: ele fica na Casca até 100%', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
-    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
-    await usuario.click(screen.getByRole('button', { name: 'Pular Persona' }))
+    await usuario.click(screen.getByRole('button', { name: 'Pular Sinal' }))
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
 
-    await usuario.click(await screen.findByRole('link', { name: 'Onboarding, 60% completo' }))
-    await usuario.click(await screen.findByRole('button', { name: 'Concluir Persona' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Onboarding, 75% completo' }))
     await usuario.click(await screen.findByRole('button', { name: 'Abrir Sinais' }))
     await usuario.click(await screen.findByRole('link', { name: 'Ir para a home' }))
 
@@ -957,71 +854,56 @@ describe('Onboarding pós-login: progresso gamificado até 100%', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument()
-    expect((await fonteDeOnboarding.ler()).checklist).toMatchObject({
-      produto: 'concluido',
-      persona: 'concluido',
-      sinal: 'concluido',
-    })
+    expect((await fonteDeOnboarding.ler()).checklist).toEqual({ contexto: 'concluido', sinal: 'concluido' })
   })
 })
 
 describe('Fonte de onboarding simulada', () => {
-  /** Um criador que passou pelo Day0 da Norte Dados direto na Fonte, sem a tela. */
-  async function criadorNoChecklist(opcoes: OpcoesFonteDeOnboardingSimulada = {}) {
-    const fonte = criarFonteDeOnboardingSimulada({ atrasoDaLeituraMs: 0, resolverLogo: async () => null, ...opcoes })
+  /** Um criador da Norte Dados parado no passo do site, direto na Fonte, sem a tela. */
+  async function criadorNoSite(opcoes: OpcoesFonteDeOnboardingSimulada = {}) {
+    const fonte = criarFonteDeOnboardingSimulada({ resolverLogo: async () => null, ...opcoes })
     await fonte.iniciar('criador')
     await fonte.definirPapel('Founder')
     await fonte.definirCliente('Norte Dados')
-    await fonte.definirDominio('nortedados.com.br')
-    await fonte.definirComoConheceu('LinkedIn')
-    await fonte.pularConvite()
     return fonte
   }
 
-  it('a leitura do site recebe o domínio confirmado e devolve a leitura; outro domínio não é lido', async () => {
-    const leitorDeSite = vi.fn(async () => LEITURA_DE_TESTE)
-    const fonte = await criadorNoChecklist({ leitorDeSite })
-    await vi.waitFor(async () => expect((await fonte.ler()).leitura.situacao).toBe('pronta'))
-    leitorDeSite.mockClear()
+  it('pular o site segue o Day0 sem domínio, fica guardado e é desfeito ao confirmar o domínio depois', async () => {
+    const armazenamento = memoria()
+    const fonte = await criadorNoSite({ armazenamento })
+    expect(await fonte.pularSite()).toMatchObject({ etapa: 'hdyhau', dominio: '', sitePulado: true })
 
-    expect(await fonte.lerSite('outro-site.com.br')).toBeNull()
-    expect(leitorDeSite).not.toHaveBeenCalled()
-    expect(await fonte.lerSite('https://www.nortedados.com.br/')).toEqual(LEITURA_DE_TESTE)
-    expect(leitorDeSite).toHaveBeenCalledWith('nortedados.com.br')
-    expect((await fonte.ler()).checklist.personas).toEqual(LEITURA_DE_TESTE.personas)
+    const reaberta = criarFonteDeOnboardingSimulada({ armazenamento, resolverLogo: async () => null })
+    expect((await reaberta.ler()).sitePulado).toBe(true)
+    await reaberta.voltar()
+    expect(await reaberta.definirDominio('nortedados.com.br')).toMatchObject({ dominio: 'nortedados.com.br', sitePulado: false })
   })
 
-  it('uma leitura com falha devolve nenhuma e deixa os campos como estavam', async () => {
-    const fonte = await criadorNoChecklist({ leitorDeSite: async () => Promise.reject(new Error('site fora do ar')) })
-    await vi.waitFor(async () => expect((await fonte.ler()).leitura.situacao).toBe('falhou'))
+  it('só o criador, no passo do site, pode deixá-lo para depois', async () => {
+    const convidado = criarFonteDeOnboardingSimulada({ resolverLogo: async () => null })
+    await convidado.iniciar('convidado')
+    expect((await convidado.pularSite()).sitePulado).toBe(false)
 
-    expect(await fonte.lerSite('nortedados.com.br')).toBeNull()
-    expect((await fonte.ler()).checklist).toMatchObject({ miniIcp: '', oQueVende: '', porQueCompram: '', personas: [] })
+    const criador = await criadorNoSite()
+    await criador.voltar()
+    expect(await criador.pularSite()).toMatchObject({ etapa: 'empresa', sitePulado: false })
   })
 
-  it('guarda as Personas sem linhas vazias nem espaços nas pontas', async () => {
-    const fonte = await criadorNoChecklist()
-    await fonte.salvarPersonas(['  Diretora de Dados ', '', 'CFO'])
-    expect((await fonte.ler()).checklist.personas).toEqual(['Diretora de Dados', 'CFO'])
-  })
-
-  it('um onboarding guardado por uma versão anterior mantém as Personas e procura o logo de novo', async () => {
-    const dados = new Map<string, string>()
-    const armazenamento: ArmazenamentoDeOnboarding = {
-      getItem: (chave) => dados.get(chave) ?? null,
-      setItem: (chave, valor) => {
-        dados.set(chave, valor)
-      },
-    }
-    await criadorNoChecklist({ armazenamento })
-    const [[chave, guardado]] = [...dados]
-    const antigo = JSON.parse(guardado)
-    antigo.checklist.personas = 'Diretora de Dados\n\n  CFO  '
+  it('um onboarding guardado por uma versão anterior, com mini-ICP e Personas, abre sem eles e procura o logo de novo', async () => {
+    const armazenamento = memoria()
+    const fonte = await criadorNoSite({ armazenamento })
+    await fonte.definirDominio('nortedados.com.br')
+    const chave = 'althius.onboarding.v3'
+    const antigo = JSON.parse(armazenamento.getItem(chave)!)
+    antigo.checklist = { miniIcp: 'antigo', personas: 'Diretora de Dados', produto: 'concluido', persona: 'concluido', sinal: 'concluido' }
+    antigo.leitura = { situacao: 'pronta', resultado: null }
     antigo.logoDoSite = ['https://nortedados.com.br/favicon.svg', 'https://nortedados.com.br/favicon.ico']
-    dados.set(chave, JSON.stringify(antigo))
+    armazenamento.setItem(chave, JSON.stringify(antigo))
 
-    const fonte = criarFonteDeOnboardingSimulada({ armazenamento, resolverLogo: LOGO_EM_SVG })
-    expect((await fonte.ler()).checklist.personas).toEqual(['Diretora de Dados', 'CFO'])
-    await vi.waitFor(async () => expect((await fonte.ler()).logoDoSite).toBe('https://nortedados.com.br/favicon.svg'))
+    const reaberta = criarFonteDeOnboardingSimulada({ armazenamento, resolverLogo: LOGO_EM_SVG })
+    const estado = await reaberta.ler()
+    expect(estado.checklist).toEqual({ contexto: 'pendente', sinal: 'concluido' })
+    expect(estado).not.toHaveProperty('leitura')
+    await vi.waitFor(async () => expect((await reaberta.ler()).logoDoSite).toBe('https://nortedados.com.br/favicon.svg'))
   })
 })

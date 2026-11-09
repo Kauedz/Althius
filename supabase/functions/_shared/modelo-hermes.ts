@@ -20,7 +20,7 @@ export interface FilaDoHermes {
 
 type Params = Parameters<Modelo['criar']>[0]
 
-/** Os tetos da fila (private.signal_llm_requests): o sistema leva o Playbook inteiro mais as instruções. */
+/** Os tetos da fila (private.signal_llm_requests): o sistema leva o Contexto da empresa inteiro mais as instruções. */
 export const MAX_CARACTERES_DO_SISTEMA_NA_FILA = 40_000
 export const MAX_CARACTERES_DO_PEDIDO_NA_FILA = 60_000
 

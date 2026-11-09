@@ -30,7 +30,7 @@ export interface Db {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   /** begin_signal_plan_request, com a sessão da pessoa. Lança ErroDoPedido quando o banco recusa. */
   abrirPedido(a: { workspaceId: string; authorization: string; apikey: string }): Promise<{ pedidoId: string; tipos: string[] }>
-  /** ICP vigente, lido com a sessão da pessoa; nulo quando não há ICP preenchido. */
+  /** O Contexto da empresa vigente, lido com a sessão da pessoa; nulo quando nenhum texto está escrito. */
   lerIcp(a: { workspaceId: string; authorization: string; apikey: string }): Promise<ContextoIcp | null>
   /** finish_signal_plan_request: registra como o Plano saiu. Uma falha aqui não derruba a resposta. */
   fecharPedido(a: { workspaceId: string; pedidoId: string; resultado: ResultadoDoPedido; authorization: string; apikey: string }): Promise<void>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,15 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  useDados,
-  useDadosDeContas,
-  useDadosDeSequencias,
-  useFonteDeSequencias,
-  useFonteDoPlaybook,
-} from '@/fonte/contexto'
+import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from '@/fonte/padroes-da-sequencia'
-import { modeloDeCadencia, passosDoModelo, type ToqueDoModelo } from '@/fonte/modelo-de-cadencia'
 import {
   classificarContasDoLote,
   rotuloDoDesfechoDoLote,
@@ -24,6 +17,7 @@ import {
   type DesfechoDoLote,
 } from '@/fonte/previsao-do-lote-de-sequencias'
 import type { ResultadoDoLoteDeSequencias, StepSequencia } from '@/fonte/sequencias-tipos'
+import { copiarTemplate, type TemplateDaAlthius } from '@/fonte/templates-althius'
 
 interface Props {
   aberto: boolean
@@ -31,9 +25,11 @@ interface Props {
   contaIds: string[]
 }
 
-function passosSemContato(toques: ToqueDoModelo[]): Omit<StepSequencia, 'contatoId'>[] {
-  return passosDoModelo(toques, '').map(({ contatoId: _contatoId, ...passo }) => passo)
+function passosSemContato(template: TemplateDaAlthius): Omit<StepSequencia, 'contatoId'>[] {
+  return copiarTemplate(template, '').map(({ contatoId: _contatoId, ...passo }) => passo)
 }
+
+const NOME_DO_CANAL = { email: 'E-mail', linkedin: 'LinkedIn', whatsapp: 'WhatsApp' } as const
 
 export function DialogoCriacaoEmLote({ aberto, aoMudar, contaIds }: Props) {
   return (
@@ -50,17 +46,12 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
   const { dados: sequencias } = useDadosDeSequencias((f) => f.sequencias(), [])
-  const fonteDoPlaybook = useFonteDoPlaybook()
-  const cadenciaDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('cadencia').catch(() => undefined), [])
-  const templatesDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('templates').catch(() => undefined), [])
-  const modelo = useMemo(
-    () =>
-      modeloDeCadencia(
-        cadenciaDoPlaybook?.vigente?.conteudo.linhas ?? [],
-        templatesDoPlaybook?.vigente?.conteudo.linhas ?? [],
-      ),
-    [cadenciaDoPlaybook, templatesDoPlaybook],
-  )
+  // A cadência vem de um template do fluxo de Sequências (da Althius ou próprio), escolhido pela pessoa: sem escolha,
+  // nada é criado. O Playbook não é mais fonte de cadência (contexto-da-empresa 06).
+  const { dados: templatesDaAlthius } = useDadosDeSequencias((f) => f.templatesDaAlthius(), [])
+  const { dados: templatesProprios } = useDadosDeSequencias((f) => f.templatesProprios(), [])
+  const [templateId, setTemplateId] = useState('')
+  const template = [...(templatesDaAlthius ?? []), ...(templatesProprios ?? [])].find((t) => t.id === templateId)
 
   const [supressoes, setSupressoes] = useState<{ kind: 'email' | 'domain'; value: string }[]>([])
   const [criando, setCriando] = useState(false)
@@ -89,23 +80,22 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
     sequencias: sequencias ?? [],
     supressoes,
   })
-  const comModelo = modelo.toques.length > 0
   const primeira = previsao.criar[0]
   const contatoDaPrevia = (contatos ?? []).find((c) => c.contaId === primeira?.id)
-  const primeiroPasso = modelo.toques[0]
+  const primeiroPasso = template?.passos[0]
 
   async function confirmar() {
-    if (previsao.criar.length === 0 || !comModelo || criando) return
+    if (previsao.criar.length === 0 || !template || criando) return
     setCriando(true)
     setErro('')
     try {
-      const template = {
+      const estrutura = {
         janelaPadrao: JANELA_PADRAO,
         regraDePause: REGRA_DE_PAUSE_PADRAO,
-        steps: passosSemContato(modelo.toques),
+        steps: passosSemContato(template),
       }
       if (fonteSequencias.criarSequenciasEmLote) {
-        setResultados(await fonteSequencias.criarSequenciasEmLote(previsao.criar.map((c) => c.id), template))
+        setResultados(await fonteSequencias.criarSequenciasEmLote(previsao.criar.map((c) => c.id), estrutura))
         return
       }
       const saida: ResultadoDoLoteDeSequencias[] = []
@@ -114,7 +104,7 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
         const nova = await fonteSequencias.criarSequencia({
           contaId: conta.id,
           participantesIds: contato ? [contato.id] : [],
-          steps: contato ? passosDoModelo(modelo.toques, contato.id) : [],
+          steps: contato ? copiarTemplate(template, contato.id) : [],
           janelaPadrao: JANELA_PADRAO,
           regraDePause: REGRA_DE_PAUSE_PADRAO,
         })
@@ -145,7 +135,7 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
       <DialogHeader>
         <DialogTitle className="titulo-secao text-xl text-al-ink">Criar Sequências em lote</DialogTitle>
         <DialogDescription className="text-sm text-al-muted">
-          Uma Sequência por Conta-alvo, com a mesma Cadência. Cada Conta-alvo tem no máximo uma Sequência em andamento.
+          Uma Sequência por Conta-alvo, com o mesmo template. Cada Conta-alvo tem no máximo uma Sequência em andamento.
         </DialogDescription>
       </DialogHeader>
 
@@ -155,32 +145,57 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
         </div>
       )}
 
-      {comModelo ? (
-        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
-          <label className="flex items-center gap-2.5 font-medium">
-            <input type="checkbox" checked readOnly className="size-4" />
-            Usar a Cadência do Playbook como modelo ({modelo.toques.length}{' '}
-            {modelo.toques.length === 1 ? 'toque' : 'toques'})
-          </label>
-          <ol className="flex flex-col gap-1 text-al-muted">
-            {modelo.toques.map((toque) => (
-              <li key={`${toque.dia}-${toque.titulo}`}>
-                Dia {toque.dia} · {toque.titulo} (
-                {toque.canal === 'email' ? 'E-mail' : toque.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'})
-              </li>
-            ))}
-          </ol>
-          {primeira && primeiroPasso && (
-            <p>
-              Prévia do primeiro passo para {primeira.nome}
-              {contatoDaPrevia ? ` · ${contatoDaPrevia.nome}` : ''}: {primeiroPasso.titulo}
-              {primeiroPasso.assunto ? ` — ${primeiroPasso.assunto}` : ''}
-            </p>
+      <div className="flex flex-col gap-2 text-xs text-al-ink">
+        <label htmlFor="template-do-lote" className="rotulo text-xs text-al-muted">
+          Template das Sequências
+        </label>
+        <select
+          id="template-do-lote"
+          value={templateId}
+          onChange={(e) => setTemplateId(e.target.value)}
+          disabled={!!resultados || criando}
+          className="campo h-10 text-sm text-al-ink bg-al-bg"
+        >
+          <option value="">Escolha um template</option>
+          {(templatesDaAlthius ?? []).length > 0 && (
+            <optgroup label="Templates da Althius">
+              {(templatesDaAlthius ?? []).map((t) => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </optgroup>
           )}
-        </div>
-      ) : (
-        <p className="text-sm text-al-muted">A Cadência do Playbook ainda não tem toques. Nada é criado sem ela.</p>
-      )}
+          {(templatesProprios ?? []).length > 0 && (
+            <optgroup label="Meus templates">
+              {(templatesProprios ?? []).map((t) => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        {template ? (
+          <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3">
+            <p className="text-al-muted">{template.resumo}</p>
+            <ol className="flex flex-col gap-1 text-al-muted">
+              {template.passos.map((passo) => (
+                <li key={passo.id}>
+                  {passo.ordem} · {passo.titulo} ({NOME_DO_CANAL[passo.canal]})
+                </li>
+              ))}
+            </ol>
+            {primeira && primeiroPasso && (
+              <p>
+                Prévia do primeiro passo para {primeira.nome}
+                {contatoDaPrevia ? ` · ${contatoDaPrevia.nome}` : ''}: {primeiroPasso.titulo}
+                {primeiroPasso.assunto ? ` — ${primeiroPasso.assunto}` : ''}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-al-muted">
+            Escolha um template da Althius ou um template seu. Sem template, nada é criado.
+          </p>
+        )}
+      </div>
 
       {resultados ? (
         <div className="flex flex-col gap-2 text-sm">
@@ -230,7 +245,7 @@ function FormularioDoLote({ contaIds, aoFechar }: { contaIds: string[]; aoFechar
         {!resultados && (
           <Button
             type="button"
-            disabled={previsao.criar.length === 0 || !comModelo || criando}
+            disabled={previsao.criar.length === 0 || !template || criando}
             onClick={() => void confirmar()}
             className="rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50"
           >

@@ -33,9 +33,7 @@ export function CartaoDeRevisao({ aprovacao, papel }: { aprovacao: AprovacaoDeRe
         <Link to={`/agentes/${agenteId}`} className="font-normal underline-offset-4 hover:underline">
           {agente}
         </Link>
-        <Link to={`/configuracoes/memoria/${revisao.documento}`} className="rotulo underline-offset-4 hover:underline">
-          Memória do Workspace
-        </Link>
+        <span className="rotulo">Memória do Workspace</span>
         <span className="rotulo ml-auto">
           Pedido por {revisao.solicitante.nome} · {formatarDiaIsoPorExtenso(revisao.pedidaEm)}
         </span>

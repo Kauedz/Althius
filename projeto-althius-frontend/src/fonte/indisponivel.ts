@@ -9,7 +9,7 @@ import {
   type ContaDeUsuarioDaSessao,
 } from './ambiente'
 import type { FonteDeAutomacao } from './automacao-tipos'
-import type { FonteDoPlaybook } from './playbook-tipos'
+import type { FonteDoContextoDaEmpresa } from './contexto-da-empresa-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
 /** Nada muda numa fonte sem backend: não há o que observar. */
@@ -110,15 +110,11 @@ export function criarFonteDeOnboardingIndisponivel(): FonteDeOnboarding {
     definirPapel: indisponivel,
     definirCliente: indisponivel,
     definirDominio: indisponivel,
+    pularSite: indisponivel,
     buscarLogo: indisponivel,
-    lerSite: indisponivel,
     definirComoConheceu: indisponivel,
     pularConvite: indisponivel,
     confirmarConvite: indisponivel,
-    salvarProduto: indisponivel,
-    salvarPersonas: indisponivel,
-    concluirProduto: indisponivel,
-    concluirPersona: indisponivel,
     pularItem: indisponivel,
     registrarVisitaASinais: indisponivel,
     pedirRetornoAoChecklist: indisponivel,
@@ -127,17 +123,18 @@ export function criarFonteDeOnboardingIndisponivel(): FonteDeOnboarding {
   }
 }
 
-/** O Playbook onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
+/** A Automação onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
 export function criarFonteDeAutomacaoIndisponivel(): FonteDeAutomacao {
   return { observar: semMudancas, escopos: recusar('configuracoes'), salvar: recusar('configuracoes') }
 }
 
-export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
+export function criarFonteDoContextoDaEmpresaIndisponivel(): FonteDoContextoDaEmpresa {
   return {
     observar: semMudancas,
-    secao: recusar('configuracoes'),
+    contexto: recusar('configuracoes'),
     salvar: recusar('configuracoes'),
-    restaurar: recusar('configuracoes'),
-    propor: recusar('configuracoes'),
+    gerar: recusar('configuracoes'),
+    aceitarSugestao: recusar('configuracoes'),
+    descartarGeracao: recusar('configuracoes'),
   }
 }

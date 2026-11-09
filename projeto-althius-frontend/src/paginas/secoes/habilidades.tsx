@@ -2,14 +2,12 @@ import { Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
-import { DOCUMENTOS_DA_MEMORIA, frasesDo, USO_NA_HABILIDADE } from '@/fonte/regras-memoria'
 import type { Agente } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 
 export function SecaoHabilidades({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const habilidades = useDados((f) => f.habilidades(agente.id), [agente.id])
-  const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
   const podeAdministrar = usePodeAdministrarAgentes()
   const { erro, escrever } = useEscritaDeAgente()
 
@@ -33,15 +31,6 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
               <div className="flex flex-1 flex-col gap-1">
                 <span className="font-normal">{habilidade.nome}</span>
                 <p className="text-al-muted">{habilidade.descricao}</p>
-                {habilidade.usaDocumento && memoria && (
-                  <p className="text-sm">
-                    <span className="rotulo mr-2">
-                      {DOCUMENTOS_DA_MEMORIA[habilidade.usaDocumento].nome}{' '}
-                      {frasesDo(habilidade.usaDocumento).concordar('vigente', 'vigentes')}
-                    </span>
-                    {USO_NA_HABILIDADE[habilidade.usaDocumento](memoria[habilidade.usaDocumento].secoes)}
-                  </p>
-                )}
                 <span className="text-sm text-al-muted">
                   {habilidade.usos} usos · melhorada em {habilidade.ultimaMelhoria}
                 </span>
